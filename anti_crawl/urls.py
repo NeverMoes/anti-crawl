@@ -19,6 +19,9 @@ from show import views as show_views
 
 
 urlpatterns = [
+    url(r'^api/$', show_views.api),
+    url(r'^api/topten/$', show_views.api_topten),
     url(r'^$', show_views.index),
+    url(r'^ajax/$', show_views.ajax),
     url(r'^admin/', admin.site.urls),
 ]
