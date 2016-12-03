@@ -15,7 +15,7 @@ class Mysqldb(object):
 
 db = Mysqldb()
 
-
+conn = mdb.connect(host='127.0.0.1', port=3306, user='root', passwd='yi')
 
 # 创建表
 
