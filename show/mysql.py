@@ -1,3 +1,6 @@
+#!/usr/bin/python3
+# -*- coding: <encoding name> -*-
+
 import pymysql as mdb
 import datetime
 

@@ -2,8 +2,7 @@ from utils.cacheten import Cache
 
 cache = Cache()
 
-cache.produce()
-
+cache.run()
 
 
 
