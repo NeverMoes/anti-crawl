@@ -2,7 +2,10 @@ from utils.cacheten import Cache
 
 cache = Cache()
 
-cache.run()
+res = cache.getsvm(cache.Datacache(ip='114.80.10.1', order=1, query=100,
+                                   stime=1471910400.0, ltime=1471996800.0))
+
+print(res)
 
 
 

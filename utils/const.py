@@ -21,6 +21,7 @@ const.APITOP = 'procdata.ft_day'
 const.APIROUTE = 'procdata.ip_route_count'
 const.IPWHERE = 'procdata.ipwhere'
 const.APITENMINUTECOUNT = 'procdata.ten_minute_count'
+const.RAWFF = 'zhxdata.flightshopping_dzairb2c_szx411'
 
 
 const.PROCCMD = 'procdata.cmd_cache'

@@ -1,6 +1,7 @@
 import pymysql
 import redis
 import datetime
+import numpy as np
 
 from collections import namedtuple
 from .const import const
@@ -13,7 +14,7 @@ class Mysqldb(object):
 
 
 class Cache(object):
-    def __init__(self, speed=False, warnpro=200, svmpro=50, timeout=7200, mlen=30000):
+    def __init__(self, speed=False, warnpro=100, svmpro=50, timeout=7200, mlen=30000):
         self.speed = speed
         self.warnpro = warnpro
         self.spro = svmpro
@@ -22,11 +23,13 @@ class Cache(object):
 
         self.redis_init()
         self.mdb_init()
+        self.svm_init()
 
     # 连接redis并,定义cache的数据包
     def redis_init(self):
         self.Datacache = namedtuple('Datacache', ['ip', 'query', 'order', 'stime', 'ltime'])
-        self.Datawarn = namedtuple('Datacache', ['ip', 'day1', 'day2', 'day3'])
+        self.Datawarn = namedtuple('Datawarn', ['ip', 'now', 'day1', 'day2', 'day3'])
+        self.warnprefix = 'warn:'
         self.rd = redis.StrictRedis()
         self.rd.flushall()
         return
@@ -45,10 +48,18 @@ class Cache(object):
         '''.format(table=const.IPCATCHED))
         return
 
+    def svm_init(self):
+        # 定义数据包
+        self.Datasvm = namedtuple('Datasvm', ['duration', 'querycount', 'depcount', 'arrcount', 'std', 'mean', 'errpro'])
+        self.Dataraw = namedtuple('Dataraw', ['ip', 'depature', 'arrival', 'querytime', 'result'])
+        return
+
     def run(self):
         self.produce(sdate=datetime.date(2016, 8, 23))
         self.produce(sdate=datetime.date(2016, 8, 24))
         self.produce(sdate=datetime.date(2016, 8, 25))
+        self.produce(sdate=datetime.date(2016, 8, 26))
+        self.produce(sdate=datetime.date(2016, 8, 27))
 
     # 生产数据
     def produce(self, sdate):
@@ -85,19 +96,20 @@ class Cache(object):
                                        '''.format(table=const.PROCCMD, index=i))
             rows = self.mdb.cursor.fetchall()
             for row in rows:
-                self.rec(Datasent(*row))
+                self.cache(Datasent(*row))
         return
 
     # datasent接受到一个命名元组
     # ip, querytime, command
     # 注意cache中的时间都为timestamp
 
-    def rec(self, datasent):
+    def cache(self, datasent):
         # 判断是否超出缓存
         # if self.rd.dbsize() > self.mlen:
         #     self.clear(now=datasent.querytime)
 
-        if self.rd.exists('warn:'+datasent.ip):
+        # 查询历史记录
+        if self.rd.exists(self.warnprefix+datasent.ip):
             if datasent.command == 'FlightShopping':
                 datawarn = self.getwarn(datasent.ip)
                 if self.calcuwarn(datawarn):
@@ -105,9 +117,11 @@ class Cache(object):
                     return
                 else:
                     self.refreshwarn(datasent.ip)
+                    return
             else:
                 self.clearwarn(datasent.ip)
                 self.setip(datasent)
+                return
         else:
             # 判断是否已存在
             if self.rd.exists(datasent.ip):
@@ -117,11 +131,13 @@ class Cache(object):
                 if datasent.querytime.timestamp() - datacache.stime > self.timeout:
                     self.clearip(datasent)
                     self.setip(datasent)
+                    return
                 else:
                     # 判断是否为极端爬虫行为
                     if datacache.query > self.warnpro and datacache.order == 0:
                         self.setwarn(datasent.ip)
                         self.catchip(datasent)
+                        return
                     else:
                         # 刷新缓存
                         self.refreship(datasent)
@@ -130,6 +146,36 @@ class Cache(object):
                 self.setip(datasent)
                 return
 
+    def getsvm(self, datacache):
+        self.mdb.cursor.execute('''SELECT ip, depature, arrival, querytime, result
+                                   FROM {table}
+                                   WHERE ip = '{ip}'
+                                   AND querytime
+                                   BETWEEN '{stime}'
+                                   AND '{etime}'
+                                   ORDER BY querytime
+                                '''.format(table=const.RAWFF, ip=datacache.ip,
+                                           stime=datetime.datetime.fromtimestamp(datacache.stime),
+                                           etime=datetime.datetime.fromtimestamp(datacache.ltime)))
+        dataraws = [self.Dataraw(*row) for row in self.mdb.cursor.fetchall()]
+        querytime = list()
+        depature = list()
+        arrival = list()
+        errcount = 0
+        for dataraw in dataraws:
+            querytime.append(dataraw.querytime)
+            depature.append(dataraw.depature)
+            arrival.append(dataraw.arrival)
+            if dataraw.result != 'ok.':
+                errcount += 1
+
+        return self.Datasvm(duration=datacache.ltime-datacache.stime,
+                            querycount=len(dataraws), depcount=len(set(depature)),
+                            arrcount=len(set(arrival)), errpro=errcount/len(dataraws),
+                            std=np.array([x.timestamp() for x in querytime]).std(),
+                            mean=np.array([x.timestamp() for x in querytime]).mean())
+
+    # 将捕获到的ip放入数据库
     def catchip(self, datasent):
         print('ip: ', datasent.ip, 'time: ', datasent.querytime)
         self.mdb.cursor.execute('''insert into {table}
@@ -138,9 +184,9 @@ class Cache(object):
                                     '''.format(table=const.IPCATCHED,
                                                ip=datasent.ip, time=datasent.querytime))
 
-    # 刷新数据
+    # 计算
     def calcuwarn(self, datawarn):
-        if 0.3 * datawarn.day3 + 0.6*datawarn.day2 + datawarn.day1 > self.warnpro:
+        if 0.25*datawarn.day3 + 0.5*datawarn.day2 + 0.75*datawarn.day1 + datawarn.now > self.warnpro:
             return True
         else:
             return False
@@ -155,34 +201,35 @@ class Cache(object):
                 self.clearip(ip)
 
         # 刷新历史表
-        warnips = self.rd.keys(r'warn:\d+\.\d+\.\d+\.\d+')
+        warnips = self.rd.keys(r'{prefix}\d+\.\d+\.\d+\.\d+'.format(prefix=self.warnprefix))
         for warnip in warnips:
             datawarn = self.getwarn(warnip, prefix=False)
-            self.rd.hmset(warnip, {'day1': 0, 'day2': datawarn.day1, 'day3':datawarn.day2})
+            self.rd.hmset(warnip, {'now': 0, 'day1': datawarn.now+self.warnpro,
+                                   'day2': datawarn.day1, 'day3': datawarn.day2})
         return
 
     def setwarn(self, ip):
-        self.rd.hmset('warn:'+ip, {'day1': 1, 'day2': 0, 'day3': 0})
+        self.rd.hmset(self.warnprefix+ip, {'now': 1, 'day1': 0, 'day2': 0, 'day3': 0})
         self.rd.delete(ip)
         return
 
     def getwarn(self, ip, prefix=True):
         if prefix:
             datadic = {key.decode('utf-8'): value.decode('utf-8') for key, value
-                       in self.rd.hgetall('warn:'+ip).items()}
+                       in self.rd.hgetall(self.warnprefix+ip).items()}
         else:
             datadic = {key.decode('utf-8'): value.decode('utf-8') for key, value
                        in self.rd.hgetall(ip).items()}
 
-        return self.Datawarn(ip, int(datadic['day1']),
-                                 int(datadic['day2']), int(datadic['day3']))
+        return self.Datawarn(ip, int(datadic['now']), int(datadic['day1']),
+                             int(datadic['day2']), int(datadic['day3']))
 
     def refreshwarn(self, ip):
-        self.rd.hincrby('warn:'+ip, 'day1')
+        self.rd.hincrby(self.warnprefix+ip, 'now')
         return
 
     def clearwarn(self, ip):
-        self.rd.delete('warn:'+ip)
+        self.rd.delete(self.warnprefix+ip)
         return
 
     def getip(self, ip):

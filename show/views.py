@@ -5,7 +5,7 @@ from .form import LoginForm
 import multiprocessing as mp
 
 from .mysql import Mysqldb
-from utils.cache import Cache
+from utils.cacheproce import Cache
 
 db = Mysqldb()
 

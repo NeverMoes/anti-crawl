@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS procdata.catchedcount (
 '''
 
 now = datetime.datetime(2016, 8, 23, 0, 0, 0)
-end = datetime.datetime(2016, 8, 26, 0, 0, 0)
+end = datetime.datetime(2016, 8, 28, 0, 0, 0)
 interval = datetime.timedelta(minutes=10)
 
 
