@@ -2,7 +2,7 @@ import pymysql
 import redis
 import datetime
 import numpy as np
-
+from sklearn.externals import joblib
 from collections import namedtuple
 from .const import const
 
@@ -14,10 +14,10 @@ class Mysqldb(object):
 
 
 class Cache(object):
-    def __init__(self, speed=False, warnpro=100, svmpro=50, timeout=7200, mlen=30000):
+    def __init__(self, speed=False, warnpro=100, svmpro=20, timeout=7200, mlen=30000):
         self.speed = speed
         self.warnpro = warnpro
-        self.spro = svmpro
+        self.svmpro = svmpro
         self.timeout = timeout
         self.mlen = mlen
 
@@ -30,6 +30,8 @@ class Cache(object):
         self.Datacache = namedtuple('Datacache', ['ip', 'query', 'order', 'stime', 'ltime'])
         self.Datawarn = namedtuple('Datawarn', ['ip', 'now', 'day1', 'day2', 'day3'])
         self.warnprefix = 'warn:'
+        self.ipprefix2 = 'ipf2:'
+        self.svmset = 'svm'
         self.rd = redis.StrictRedis()
         self.rd.flushall()
         return
@@ -43,7 +45,8 @@ class Cache(object):
         CREATE TABLE IF NOT EXISTS {table} (
         `ip` varchar(50) NOT NULL,
         `time` datetime NOT NULL,
-        KEY  (`time`,`ip`)
+        `type` varchar(50) NOT NULL,
+        KEY  (`time`,`ip`, `type`)
         ) ENGINE=MyISAM DEFAULT CHARSET=gbk;
         '''.format(table=const.IPCATCHED))
         return
@@ -52,6 +55,13 @@ class Cache(object):
         # 定义数据包
         self.Datasvm = namedtuple('Datasvm', ['duration', 'querycount', 'depcount', 'arrcount', 'std', 'mean', 'errpro'])
         self.Dataraw = namedtuple('Dataraw', ['ip', 'depature', 'arrival', 'querytime', 'result'])
+        # 导入svm模型
+        self.svm_model = joblib.load('svmmodel/svmmodel.pkl')
+        # 定义结果类型
+        self.Svmres = namedtuple('Svmres', ['iscra', 'notcra'])
+        self.svmres = self.Svmres(iscra=2, notcra=1)
+
+
         return
 
     def run(self):
@@ -108,43 +118,64 @@ class Cache(object):
         # if self.rd.dbsize() > self.mlen:
         #     self.clear(now=datasent.querytime)
 
-        # 查询历史记录
-        if self.rd.exists(self.warnprefix+datasent.ip):
+        # 查询svm记录
+        if self.rd.sismember(self.svmset, datasent.ip):
             if datasent.command == 'FlightShopping':
-                datawarn = self.getwarn(datasent.ip)
-                if self.calcuwarn(datawarn):
-                    self.catchip(datasent)
-                    return
-                else:
-                    self.refreshwarn(datasent.ip)
-                    return
-            else:
-                self.clearwarn(datasent.ip)
-                self.setip(datasent)
+                self.catchip(datasent.ip, datasent.querytime, 'svm')
                 return
+            else:
+                self.clearsvm(datasent.ip)
+            return
         else:
-            # 判断是否已存在
-            if self.rd.exists(datasent.ip):
-                # 取出数据
-                datacache = self.getip(datasent.ip)
-                # 判断是否超时
-                if datasent.querytime.timestamp() - datacache.stime > self.timeout:
-                    self.clearip(datasent)
-                    self.setip(datasent)
-                    return
-                else:
-                    # 判断是否为极端爬虫行为
-                    if datacache.query > self.warnpro and datacache.order == 0:
-                        self.setwarn(datasent.ip)
-                        self.catchip(datasent)
+            # 查询cache历史记录
+            if self.rd.exists(self.warnprefix+datasent.ip):
+                if datasent.command == 'FlightShopping':
+                    datawarn = self.getwarn(datasent.ip)
+                    if self.calcuwarn(datawarn):
+                        self.catchip(datasent.ip, datasent.querytime, 'cache')
                         return
                     else:
-                        # 刷新缓存
-                        self.refreship(datasent)
+                        self.refreshwarn(datasent.ip)
                         return
+                else:
+                    self.clearwarn(datasent.ip)
+                    self.setip(datasent)
+                    return
             else:
-                self.setip(datasent)
-                return
+                # 判断cache表是否已存在数据
+                if self.rd.exists(datasent.ip):
+                    # 取出数据
+                    datacache = self.getip(datasent.ip)
+                    # 判断是否超时
+                    if datasent.querytime.timestamp() - datacache.stime > self.timeout:
+                        self.clearip(datasent)
+                        self.setip(datasent)
+                        return
+                    else:
+                        # 判断是否为极端爬虫行为
+                        if datacache.query > self.warnpro and datacache.order == 0:
+                            self.setwarn(datasent.ip)
+                            self.catchip(datasent.ip, datasent.querytime, 'cache')
+                            return
+                        else:
+                            # 判断是否需要svm
+                            if datacache.query > self.svmpro:
+                                datasvm = self.getsvm(datacache)
+                                if self.svmprodict(datasvm):
+                                    # 加入svm缓存
+                                    self.setsvm(datasent.ip)
+                                    self.catchip(datasent.ip, datasent.querytime, 'svm')
+                                    self.clearip(datasent)
+                                    return
+                                else:
+                                    pass
+                            else:
+                                # 刷新缓存
+                                self.refreship(datasent)
+                            return
+                else:
+                    self.setip(datasent)
+                    return
 
     def getsvm(self, datacache):
         self.mdb.cursor.execute('''SELECT ip, depature, arrival, querytime, result
@@ -175,16 +206,32 @@ class Cache(object):
                             std=np.array([x.timestamp() for x in querytime]).std(),
                             mean=np.array([x.timestamp() for x in querytime]).mean())
 
+    def setsvm(self, ip):
+        self.rd.sadd(self.svmset, ip)
+        return
+
+    def clearsvm(self, ip):
+        self.rd.srem(self.svmset, ip)
+
+    def svmprodict(self, datasvm):
+        result = self.svm_model.predict([datasvm])[0]
+        if result == self.svmres.iscra:
+            return True
+        else:
+            return False
+
     # 将捕获到的ip放入数据库
-    def catchip(self, datasent):
-        print('ip: ', datasent.ip, 'time: ', datasent.querytime)
+    def catchip(self, ip, time, type):
+        print('ip: ', ip, 'time: ', time, 'type', type)
         self.mdb.cursor.execute('''insert into {table}
-                                   (`ip`, `time`)
-                                    VALUES ('{ip}', '{time}')
+                                   (`ip`, `time`, `type`)
+                                    VALUES ('{ip}', '{time}', '{type}')
                                     '''.format(table=const.IPCATCHED,
-                                               ip=datasent.ip, time=datasent.querytime))
+                                               ip=ip, time=time, type=type))
+        return
 
     # 计算
+
     def calcuwarn(self, datawarn):
         if 0.25*datawarn.day3 + 0.5*datawarn.day2 + 0.75*datawarn.day1 + datawarn.now > self.warnpro:
             return True
