@@ -42,7 +42,7 @@ class Mysqldb(object):
         interval = datetime.timedelta(days=1)
         self.cursor.execute('''
                             select * from procdata.catchedcount
-                            where time > '{stime}'
+                            where time >= '{stime}'
                             and time < '{etime}'
         '''.format(stime=date, etime=date+interval))
         for row in self.cursor.fetchall():

@@ -47,9 +47,10 @@ interval = datetime.timedelta(minutes=10)
 while True:
     if now != end:
         sql = '''insert procdata.catchedcount
+                (`time`, `querycount`)
                           select '{stime}', count(ip)
                           from procdata.ip_catched
-                          where `time` > '{stime}'
+                          where `time` >= '{stime}'
                           and `time` < '{etime}' '''.format(stime=now, etime=now+interval)
         print(sql)
         cursor.execute(sql)
@@ -57,8 +58,6 @@ while True:
     else:
         break
 
-
-#
 
 
 '''
@@ -68,3 +67,12 @@ from procdata.ip_catched
 where time > '2016-08-23 00:00:00'
 and time < '2016-08-23 00:00:10'
 '''
+
+
+'''insert procdata.catchedcount
+                (`time`, `querycount`)
+                          select '{stime}', count(ip)
+                          from procdata.ip_catched
+                          where `time` >= '{stime}'
+                          and `time` < '{etime}' '''
+
