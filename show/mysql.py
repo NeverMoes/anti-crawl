@@ -25,6 +25,7 @@ class Mysqldb(object):
                                    VALUES ('{ip}', '{type}', '{time}', '{istrash}', '{label}')
                                    '''.format(ip=ip, type=type, time=time.replace('_', ' '),
                                               istrash=istrash, label=label))
+        self.connect.close()
         return {'result': 'ok'}
 
     def getiplist(self):
@@ -33,6 +34,7 @@ class Mysqldb(object):
         for row in self.cursor.fetchall():
             data.append({'ip': row[0], 'type': row[1],
                          'time': row[2], 'istrash': row[3], 'label': row[4]})
+        self.connect.close()
         return data
     # count, time
 
@@ -47,6 +49,7 @@ class Mysqldb(object):
         '''.format(stime=date, etime=date+interval))
         for row in self.cursor.fetchall():
             data.append({'querycount': row[1], 'time': row[0]})
+        self.connect.close()
         return data
 
     def getippiedata(self, date):
@@ -64,6 +67,7 @@ class Mysqldb(object):
         tempdict['all'] = result[0][6]
 
         templist.append(tempdict)
+        self.connect.close()
         return templist
 
     def gettenminutecount(self, date, ip):
@@ -105,7 +109,7 @@ class Mysqldb(object):
                 tempdict['buy'] = 0
             templist.append(tempdict)
             tempdate += delta
-
+        self.connect.close()
         return templist
 
     def ipwhere(self, ip):
@@ -119,6 +123,7 @@ class Mysqldb(object):
         self.cursor.execute(sql)
         result = self.cursor.fetchall()
         temp = result[0][0] + result[0][1]
+        self.connect.close()
         return {'ipwhere': temp}
 
     def route(self, ip=None, date=None):
@@ -144,6 +149,7 @@ class Mysqldb(object):
             '''.format(table=const.APIROUTE, date=date, ip=ip))
             for row in self.cursor.fetchall():
                 data.append({'route': row[0], 'querycount': row[1], 'ordercount': row[2]})
+            self.connect.close()
             return data
 
     def top(self, date, type, limit):
@@ -186,5 +192,6 @@ class Mysqldb(object):
             for row in data:
                 row['iploc'] = self.ipwhere(row['ip'])['ipwhere']
 
+        self.connect.close()
         return data
 
