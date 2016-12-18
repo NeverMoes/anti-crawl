@@ -15,6 +15,48 @@ class Mysqldb(object):
         except Exception as e:
             print(e)
 
+    def getsessiontabledate(self, startdate, enddate):
+
+        kindlist = ['duration', 'query', 'depature', 'arrival', 'variance', 'mean', 'error']
+        connection = self.connect
+        cursor = self.cursor
+
+        timeformat = '%Y-%m-%d'
+        date1 = datetime.datetime.strptime(startdate, timeformat)
+        date2 = datetime.datetime.strptime(enddate, timeformat)
+        delta = datetime.timedelta(days=1)
+
+        # sql = 'SELECT * FROM %s WHERE date = %s'
+
+        returnlist = []
+        for i in range(7):
+            tempdict = {}
+            col = kindlist[i]
+            date1 = datetime.datetime.strptime(startdate, timeformat)
+            while date1 <= date2:
+                cursor.execute('''SELECT *
+        FROM procdata.allsessiontable
+        WHERE `kinds` = '{kind}' AND `date` = '{time}'
+        '''.format(kind=col, time=datetime.datetime.strftime(date1, timeformat)))
+                result = cursor.fetchall()
+                tempdict['all'] = {'class2': 0, 'class1': 0}
+                for i in range(len(result)):
+                    tempdict['all']['class2'] += result[i][3]
+                    tempdict['all']['class1'] += result[i][4]
+                    if result[i][2] in tempdict:
+                        tempdict[result[i][2]]['class2'] += result[i][3]
+                        tempdict[result[i][2]]['class1'] += result[i][4]
+                    else:
+                        tempdict[result[i][2]] = {'class2': result[i][3], 'class1': result[i][4]}
+                date1 += delta
+            showlist = []
+            for key in tempdict:
+                showlist.append({'range': key, 'class2': tempdict[key]['class2'], 'class1': tempdict[key]['class1']})
+            temp2dict = {'kinds': col, 'data': showlist}
+            returnlist.append(temp2dict)
+
+        return returnlist
+
     def setiplist(self, ip=None, type=None, time=None, istrash=None, label=None, isdel=False):
         if isdel:
             self.cursor.execute('''delete from procdata.iplist
@@ -25,7 +67,6 @@ class Mysqldb(object):
                                    VALUES ('{ip}', '{type}', '{time}', '{istrash}', '{label}')
                                    '''.format(ip=ip, type=type, time=time.replace('_', ' '),
                                               istrash=istrash, label=label))
-        self.connect.close()
         return {'result': 'ok'}
 
     def getiplist(self):
@@ -34,7 +75,6 @@ class Mysqldb(object):
         for row in self.cursor.fetchall():
             data.append({'ip': row[0], 'type': row[1],
                          'time': row[2], 'istrash': row[3], 'label': row[4]})
-        self.connect.close()
         return data
     # count, time
 
@@ -49,7 +89,6 @@ class Mysqldb(object):
         '''.format(stime=date, etime=date+interval))
         for row in self.cursor.fetchall():
             data.append({'querycount': row[1], 'time': row[0]})
-        self.connect.close()
         return data
 
     def getippiedata(self, date):
@@ -67,7 +106,6 @@ class Mysqldb(object):
         tempdict['all'] = result[0][6]
 
         templist.append(tempdict)
-        self.connect.close()
         return templist
 
     def gettenminutecount(self, date, ip):
@@ -109,7 +147,6 @@ class Mysqldb(object):
                 tempdict['buy'] = 0
             templist.append(tempdict)
             tempdate += delta
-        self.connect.close()
         return templist
 
     def ipwhere(self, ip):
@@ -123,7 +160,6 @@ class Mysqldb(object):
         self.cursor.execute(sql)
         result = self.cursor.fetchall()
         temp = result[0][0] + result[0][1]
-        self.connect.close()
         return {'ipwhere': temp}
 
     def route(self, ip=None, date=None):
@@ -149,7 +185,6 @@ class Mysqldb(object):
             '''.format(table=const.APIROUTE, date=date, ip=ip))
             for row in self.cursor.fetchall():
                 data.append({'route': row[0], 'querycount': row[1], 'ordercount': row[2]})
-            self.connect.close()
             return data
 
     def top(self, date, type, limit):
@@ -192,6 +227,5 @@ class Mysqldb(object):
             for row in data:
                 row['iploc'] = self.ipwhere(row['ip'])['ipwhere']
 
-        self.connect.close()
         return data
 

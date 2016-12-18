@@ -3,7 +3,7 @@ from django.http import JsonResponse
 from django.http import HttpResponse
 from .form import LoginForm
 import multiprocessing as mp
-
+import datetime
 from .mysql import Mysqldb
 from utils.cacherun import Cache
 
@@ -27,6 +27,12 @@ def jsonres(data=None, result=True, reason=None):
         res['msg'] = reason or 'error'
     return JsonResponse(res)
 
+
+def api_getsessiontabledate(request):
+    if request.GET.get('startdate') and request.GET.get('enddate'):
+        return jsonres(db.getsessiontabledate(request.GET['startdate'], request.GET['enddate']))
+    else:
+        return jsonres(result=False)
 
 def api_getiplist(request):
     return jsonres(db.getiplist())
@@ -82,13 +88,15 @@ def api_re(request):
     if request.GET.get('param'):
         param = request.GET.get('param')
         if param == 'start':
-            if mp.active_children():
-                return jsonres(result=False, reason='server is already running')
+            if request.GET.get('date'):
+                if mp.active_children():
+                    return jsonres(result=False, reason='server is already running')
+                else:
+                    cache = Cache(date=request.GET['date'])
+                    cache.start()
+                    return jsonres({'start': 'ok'})
             else:
-                queue = mp.Queue()
-                cache = Cache(queue)
-                cache.start()
-                return jsonres({'start': 'ok'})
+                jsonres(result=False)
 
         elif param == 'stop':
             if mp.active_children():
@@ -97,15 +105,24 @@ def api_re(request):
             else:
                 return jsonres(result=False, reason='no server is running now')
 
-
         elif param == 'data':
             if mp.active_children():
                 data = list()
-                queue = mp.active_children()[0].queue
-                for _ in range(10):
-                    try:
-                        data.append(queue.get(block=False))
-                    except:
+                sdate = datetime.datetime.strptime(mp.active_children()[0].name, '%Y-%m-%d')
+                edate = sdate + datetime.timedelta(days=1)
+                interval = datetime.timedelta(minutes=10)
+
+                while True:
+                    if sdate != edate:
+                        db.cursor.execute('''
+                                          select '{stime}', count(ip)
+                                          from procdata._ipcatched
+                                          where `time` >= '{stime}'
+                                          and `time` < '{etime}' '''.format(stime=sdate, etime=sdate + interval))
+                        row = db.cursor.fetchone()
+                        data.append({'time': row[0], 'querycount': row[1]})
+                        sdate += interval
+                    else:
                         break
                 return jsonres(data)
             else:

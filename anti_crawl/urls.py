@@ -19,6 +19,10 @@ from show import views as show_views
 
 
 urlpatterns = [
+
+    # /api/getarrivalsession/?startdate=2016-09-01&enddate=2016-09-01
+    url(r'^api/getarrivalsession/$', show_views.api_getsessiontabledate),
+
     # api/getiplist/?
     url(r'^api/getiplist/$', show_views.api_getiplist),
     # api/setiplist/?ip=a&type=a&time=2016-08-24_00:00:00&istrash=false&isdel=false
@@ -33,6 +37,8 @@ urlpatterns = [
     url(r'^api/gettenminutecount/$', show_views.api_gettenminutecount),
 
     url(r'^api/ipwhere/$', show_views.api_ipwhere),
+
+    # /api/re/?params=start&date=2016-08-23
     url(r'^api/re/$', show_views.api_re),
     url(r'^api/$', show_views.api),
 

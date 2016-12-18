@@ -23,6 +23,8 @@ const.IPWHERE = 'procdata.ipwhere'
 const.APITENMINUTECOUNT = 'procdata.ten_minute_count'
 const.RAWFF = 'zhxdata.flightshopping_dzairb2c_szx411'
 
+const.IPCATCHEDRUN = 'procdata._ipcatched'
+
 
 const.PROCCMD = 'procdata.cmd_cache'
 const.IPCATCHED = 'procdata.ip_catched'

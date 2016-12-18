@@ -1,7 +1,10 @@
 import pymysql
 import redis
-from datetime import datetime
-
+import datetime
+import os
+import numpy as np
+import multiprocessing as mp
+from sklearn.externals import joblib
 from collections import namedtuple
 from .const import const
 
@@ -12,166 +15,355 @@ class Mysqldb(object):
         self.cursor = self.connect.cursor()
 
 
-class Cache():
-    def __init__(self, speed=False, wpro=500, spro=200, timeout=7200, mlen=30000):
-        super().__init__()
+class Cache(mp.Process):
+    def __init__(self, date, speed=False, warnpro=100, svmpro=30, timeout=7200, mlen=30000):
+        super().__init__(name=date)
+        self.date = date
+
         self.speed = speed
-        self.wpro = wpro
-        self.spro = spro
+        self.warnpro = warnpro
+        self.svmpro = svmpro
         self.timeout = timeout
-        self.mlen= mlen
+        self.mlen = mlen
 
-        # log文件文件的存储路径
-        self.file = open('/home/nemos/project/log.txt', 'w')
+        self.redis_init()
+        self.mdb_init()
+        self.svm_init()
+        self.load_history()
 
-        # 连接redis
+    # 连接redis并,定义cache的数据包
+    def redis_init(self):
+        self.Datacache = namedtuple('Datacache', ['ip', 'query', 'order', 'stime', 'ltime'])
+        self.Datawarn = namedtuple('Datawarn', ['ip', 'now', 'day1', 'day2', 'day3'])
+
+        self.warnprefix = 'warn:'
+        self.svmset = 'svmset'
+
         self.rd = redis.StrictRedis()
         self.rd.flushall()
-        # 初始化报表
-        self.rd.hmset('end', {'svm': 0, 'pass': 0, 'warn': 0})
+        return
 
+    # 持久化数据
+    def mdb_init(self):
         self.mdb = Mysqldb()
+        self.mdb.cursor.execute('drop table IF EXISTS {table}'.format(table=const.IPCATCHEDRUN))
 
-        self.log('cache开始运行, 模拟速度无限大, 警告比例: {wpro}, 触发svm比例: {spro}, 废弃时间(单位秒): {timeout}'.format(wpro=self.wpro, spro=self.spro, timeout=self.timeout))
-
-    # 生成日志
-    def log(self, msg):
-        print(msg)
-        self.file.write(msg+'\n')
+        self.mdb.cursor.execute('''
+        CREATE TABLE IF NOT EXISTS {table} (
+        `ip` varchar(50) NOT NULL,
+        `time` datetime NOT NULL,
+        `type` varchar(50) NOT NULL,
+        KEY  (`time`,`ip`, `type`)
+        ) ENGINE=MyISAM DEFAULT CHARSET=gbk;
+        '''.format(table=const.IPCATCHEDRUN))
         return
 
-    # 生成数据
-    def produce(self):
-        # 获得数据总数
+    def svm_init(self):
+        # 定义数据包
+        self.Datasvm = namedtuple('Datasvm', ['duration', 'querycount', 'depcount', 'arrcount', 'std', 'mean', 'errpro'])
+        self.Dataraw = namedtuple('Dataraw', ['ip', 'depature', 'arrival', 'querytime', 'result'])
+
+        # svm的黑白名单
+        self.svmwhitelis = 'svmwhite'
+        self.svmblacklis = 'svmblack'
+
+        # 导入svm模型
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        svmpath = os.path.join(BASE_DIR, 'svmmodel', 'svmmodel.pkl')
+        self.svm_model = joblib.load(svmpath)
+
+        # 定义结果类型
+        self.Svmres = namedtuple('Svmres', ['iscra', 'notcra'])
+        self.svmres = self.Svmres(iscra=2, notcra=1)
+
+        return
+
+    def load_history(self):
+        self.whitelist = 'whiteset'
+        self.blacklist = 'blackset'
+
+        whitelist = ['114.80.10.1', '61.155.159.41', '103.37.138.14', '103.37.138.110']
+        blacklist = []
+
+        [self.rd.sadd(self.whitelist, x) for x in whitelist]
+        [self.rd.sadd(self.blacklist, x) for x in blacklist]
+
+        return
+
+    def run(self):
+        self.produce(sdate=datetime.datetime.strptime(self.date, '%Y-%m-%d'))
+
+    # 生产数据
+    def produce(self, sdate):
+        edate = sdate + datetime.timedelta(days=1)
+        # 确定数据总数
         self.mdb.cursor.execute('''select count(*)
-                                   from procdata.cmd_cache
-                                   where querytime < "2016-08-24"
-                                   ''')
+                                   from {table}
+                                   WHERE querytime >= '{sdate}'
+                                   AND querytime < '{edate}'
+                                   '''.format(sdate=sdate,
+                                              edate=edate, table=const.PROCCMD))
         datacount = self.mdb.cursor.fetchone()[0]
-        self.log('数据总数: ' + str(datacount))
 
-        # 创建数据对象
+        # 确定索引起始位置
+        self.mdb.cursor.execute('''select index_id
+                                   from {table}
+                                   WHERE querytime >= '{sdate}'
+                                   limit 1
+                                   '''.format(sdate=sdate, edate=edate, table=const.PROCCMD))
+        indexloc = self.mdb.cursor.fetchone()[0]
+
+        # 建立数据包结构
         # ip, querytime, command, index_id
-        self.mdb.cursor.execute('select * from procdata.cmd_cache limit 1')
-        self.Data = namedtuple('Data', [x[0] for x in self.mdb.cursor.description])
+        self.mdb.cursor.execute('select * from {table} limit 1'.format(table=const.PROCCMD))
+        Datasent = namedtuple('Datasent', [x[0] for x in self.mdb.cursor.description])
 
-        # 输出起始日期
-        data = self.Data(*(self.mdb.cursor.fetchone()))
-        self.log('起始日期: ' + str(data.querytime))
-
-        # 开始输出数据
-        for i in range(datacount):
-            if i % 1000 == 0:
-                print(i)
-            self.rec(self.Data(*(self.mdb.cursor.fetchone())))
-
-        self.end()
-        self.file.close()
+        # 开始读取数据
+        for i in range(indexloc, indexloc+datacount, 10000):
+            # 一次读取10000条
+            print(i)
+            self.mdb.cursor.execute('''select ip, querytime, command, index_id
+                                       from {table} where index_id >= {index}
+                                       limit 10000
+                                       '''.format(table=const.PROCCMD, index=i))
+            rows = self.mdb.cursor.fetchall()
+            for row in rows:
+                self.cache(Datasent(*row))
         return
 
-    def clear(self, now):
-        print('start clear')
-        ips = self.rd.keys(pattern=r'\d+\.\d+\.\d+\.\d+')
-        for ip in ips:
-            data = self.dp(ip)
-            if now.timestamp() - self.tp(data['ltime']).timestamp() > self.timeout:
-                self.passed(data)
-        return
-
-
-    # msg接受到一个命名元组
+    # datasent接受到一个命名元组
     # ip, querytime, command
+    # 注意cache中的时间都为timestamp
 
-    def rec(self, msg):
+    def cache(self, datasent):
         # 判断是否超出缓存
         # if self.rd.dbsize() > self.mlen:
-        #     self.clear(now=msg.querytime)
+        #     self.clear(now=datasent.querytime)
 
-        # 判断是否已存在
-        if self.rd.exists(msg.ip):
-            # 判断之前的数据是否要废弃
-            if msg.querytime.timestamp() - self.tp(self.rd.hget(msg.ip, 'ltime').decode('utf8')).timestamp() > self.timeout:
-                data = self.dp(msg.ip)
-                # 清除数据
-                self.passed(data)
-                # 初始化数据
-                self.rd.hmset(msg.ip, {'query': 1, 'stime': msg.querytime, 'ltime': msg.querytime, 'order': 0})
-                return
-
-            else:
-                # 将哈希表解析成字典
-                data = self.dp(msg.ip)
-
-                # 判断是否为极端爬虫行为
-                if int(data['query']) > self.wpro and int(data['order']) == 0:
-                    self.warn(data)
-                    return
-                else:
-                    # 订票量不为0,但是查询次数过高
-                    if int(data['order']) != 0 and int(data['query']) / int(data['order']) > self.spro:
-                        self.svm(data)
-                        return
-                    else:
-                        # 刷新缓存
-                        if msg.command == 'FlightShopping':
-                            self.rd.hincrby(msg.ip, 'query')
-                        else:
-                            self.rd.hincrby(msg.ip, 'order')
-                        self.rd.hset(msg.ip, 'ltime', msg.querytime)
-                        return
-
-        else:
-            self.rd.hmset(msg.ip, {'query': 1, 'stime': msg.querytime, 'ltime': msg.querytime, 'order': 0})
+        # 查询黑白名单
+        if self.rd.sismember(self.whitelist, datasent.ip):
+            return
+        if self.rd.sismember(self.blacklist, datasent.ip):
+            self.catchquery(datasent.ip, datasent.querytime, 'cache')
             return
 
-    # msg为字典
-    def passed(self, msg):
-        self.rd.hincrby('end', 'pass')
-        self.rd.delete(msg['ip'])
-        self.log('{ip}超时, 查询次数: {querycount}, 订票次数: {ordercount}, 上次查询时间: {ltime}'.format(
-            ip=msg['ip'], querycount=msg['query'], ordercount=msg['order'], ltime=msg['ltime']))
+        # 查询svm黑名单
+        if self.rd.sismember(self.svmblacklis, datasent.ip):
+            if datasent.command == 'FlightShopping':
+                self.catchquery(datasent.ip, datasent.querytime, 'svm')
+                return
+            else:
+                self.rd.srem(self.svmblacklis, datasent.ip)
+            return
+
+        # 查询svm白名单
+        if self.rd.hexists(self.svmwhitelis, datasent.ip):
+            # 判断是否满足再次进入svm的条件
+            if int(self.rd.hget(self.svmwhitelis, datasent.ip).decode('utf8')) > self.svmpro*2:
+                datacache = self.getip(datasent.ip)
+                datasvm = self.getsvm(datacache)
+                # 判断是否满足svm
+                if self.svmprodict(datasvm):
+                    self.setsvmblis(datasent.ip, True)
+                    return
+                else:
+                    self.clearsvmwlis(datasent.ip)
+                    return
+            else:
+                # 刷新svm白名单缓存
+                self.refreshsvmwlis(datasent.ip)
+                self.refreship(datasent)
+                return
+
+        # 查询cache历史记录
+        if self.rd.exists(self.warnprefix+datasent.ip):
+            if datasent.command == 'FlightShopping':
+                datawarn = self.getwarn(datasent.ip)
+                if self.calcuwarn(datawarn):
+                    self.catchquery(datasent.ip, datasent.querytime, 'cache')
+                    return
+                else:
+                    self.refreshwarn(datasent.ip)
+                    return
+            else:
+                self.clearwarn(datasent.ip)
+                return
+
+        # 判断cache表是否已存在数据
+        if self.rd.exists(datasent.ip):
+            # 取出数据
+            datacache = self.getip(datasent.ip)
+            # 判断是否超时
+            if datasent.querytime.timestamp() - datacache.stime > self.timeout:
+                self.clearip(datasent)
+                self.setip(datasent)
+                return
+            else:
+                # 判断是否为极端爬虫行为
+                if datacache.query > self.warnpro and datacache.order == 0:
+                    self.setwarn(datasent.ip)
+                    self.clearip(datasent)
+                    self.catchquery(datasent.ip, datasent.querytime, 'cache')
+                    return
+                else:
+                    # 判断是否需要svm
+                    if datacache.query > self.svmpro:
+                        datasvm = self.getsvm(datacache)
+                        if self.svmprodict(datasvm):
+                            # 加入svm缓存
+                            self.setsvmblis(datasent.ip, False)
+                            self.clearip(datasent)
+                            return
+                        else:
+                            self.setsvmwlis(datasent.ip)
+                            self.refreship(datasent)
+                    else:
+                        # 刷新缓存
+                        self.refreship(datasent)
+                    return
+        else:
+            self.setip(datasent)
+            return
+
+    def clearsvmwlis(self, ip):
+        self.rd.hdel(self.svmwhitelis, ip)
+
+    def refreshsvmwlis(self, ip):
+        self.rd.hincrby(self.svmwhitelis, ip)
         return
 
+    def setsvmblis(self, ip, isfromwlis):
+        # 先删除cache和白名单中的缓存,
+        # 再加入黑名单
+        if isfromwlis:
+            self.rd.hdel(self.whitelist, ip)
 
-    # msg为字典
-    def warn(self, msg):
-        self.rd.hincrby('end', 'warn')
-        self.rd.delete(msg['ip'])
-        self.log('检测到极端爬虫行为: IP: {ip}, 查询次数: {querycount}, 订票次数: {ordercount}, 缓存时长: {time}(s)'.format(
-            ip=msg['ip'], querycount=msg['query'], ordercount=msg['order'],
-            time=self.tp(msg['ltime']).timestamp() - self.tp(msg['stime']).timestamp()))
+        self.rd.delete(ip)
+        self.rd.sadd(self.svmblacklis, ip)
         return
 
+    def setsvmwlis(self, ip):
+        self.rd.hset(self.svmwhitelis, ip, 1)
 
-    # msg为字典
-    def svm(self, msg):
-        self.rd.hincrby('end', 'svm')
-        self.rd.delete(msg['ip'])
-        self.log('检测到需要svm的行为: IP: {ip}, 查询次数: {querycount}, 订票次数: {ordercount}, 缓存时长: {time}(s)'.format(
-            ip=msg['ip'], querycount=msg['query'], ordercount=msg['order'],
-            time=self.tp(msg['ltime']).timestamp() - self.tp(msg['stime']).timestamp()))
+    def getsvm(self, datacache):
+        self.mdb.cursor.execute('''SELECT ip, depature, arrival, querytime, result
+                                   FROM {table}
+                                   WHERE ip = '{ip}'
+                                   AND querytime
+                                   BETWEEN '{stime}'
+                                   AND '{etime}'
+                                   ORDER BY querytime
+                                '''.format(table=const.RAWFF, ip=datacache.ip,
+                                           stime=datetime.datetime.fromtimestamp(datacache.stime),
+                                           etime=datetime.datetime.fromtimestamp(datacache.ltime)))
+        dataraws = [self.Dataraw(*row) for row in self.mdb.cursor.fetchall()]
+        querytime = list()
+        depature = list()
+        arrival = list()
+        interval = list()
+        errcount = 0
+        for dataraw in dataraws:
+            querytime.append(dataraw.querytime)
+            depature.append(dataraw.depature)
+            arrival.append(dataraw.arrival)
+            if dataraw.result != 'ok.':
+                errcount += 1
+
+        for i in range(len(dataraws)-1):
+            interval.append(querytime[i+1].timestamp()-querytime[i].timestamp())
+
+        return self.Datasvm(duration=datacache.ltime-datacache.stime,
+                            querycount=len(dataraws), depcount=len(set(depature)),
+                            arrcount=len(set(arrival)), errpro=errcount/(len(dataraws)+1),
+                            std=np.array(interval).std(),
+                            mean=np.array(interval).mean())
+
+    def svmprodict(self, datasvm):
+        resultpro = self.svm_model.predict_proba([datasvm])[0][1]
+        if resultpro > 0.90:
+            return True
+        else:
+            return False
+
+    # 将捕获到的ip放入数据库
+    def catchquery(self, ip, time, type):
+        #print('ip: ', ip, 'time: ', time, 'type: ', type)
+
+        self.mdb.cursor.execute('''insert into {table}
+                                   (`ip`, `time`, `type`)
+                                    VALUES ('{ip}', '{time}', '{type}')
+                                    '''.format(table=const.IPCATCHEDRUN,
+                                               ip=ip, time=time, type=type))
         return
 
+    # 计算
+    def calcuwarn(self, datawarn):
+        if 0.25*datawarn.day3 + 0.5*datawarn.day2 + 0.75*datawarn.day1 + datawarn.now > self.warnpro:
+            return True
+        else:
+            return False
 
-    def end(self):
-        # self.clear()
-        data = self.rd.hgetall('end')
-        data = {key.decode('utf-8'): value.decode('utf-8') for key, value in data.items()}
-        self.log('模拟结束, 超时: {pass_}, 需要svm: {svm}, 极端爬虫: {warn}'.format(
-            pass_=data['pass'], svm=data['svm'], warn=data['warn']))
+    def dayrefresh(self, date):
+        # 清理超时IP
+        ips = self.rd.keys(r'\d+\.\d+\.\d+\.\d+')
+        nowtimestamp = date.timestamp()
+        for ip in ips:
+            datacache = self.getip(ip)
+            if nowtimestamp - datacache.ltime > self.timeout:
+                self.clearip(ip)
+
+        # 刷新历史表
+        warnips = self.rd.keys(r'{prefix}\d+\.\d+\.\d+\.\d+'.format(prefix=self.warnprefix))
+        for warnip in warnips:
+            datawarn = self.getwarn(warnip, prefix=False)
+            self.rd.hmset(warnip, {'now': 0, 'day1': datawarn.now+self.warnpro,
+                                   'day2': datawarn.day1, 'day3': datawarn.day2})
         return
 
+    def setwarn(self, ip):
+        self.rd.hmset(self.warnprefix+ip, {'now': 1, 'day1': 0, 'day2': 0, 'day3': 0})
+        return
 
-    @staticmethod
-    def tp(strtime):
-        timeymd, timehms = strtime.split(' ')
-        year, mon, day = timeymd.split('-')
-        hour, min, sec = timehms.split('.')[0].split(':')
-        return datetime(int(year), int(mon), int(day), int(hour), int(min), int(sec))
+    def getwarn(self, ip, prefix=True):
+        if prefix:
+            datadic = {key.decode('utf-8'): value.decode('utf-8') for key, value
+                       in self.rd.hgetall(self.warnprefix+ip).items()}
+        else:
+            datadic = {key.decode('utf-8'): value.decode('utf-8') for key, value
+                       in self.rd.hgetall(ip).items()}
 
-    def dp(self, ip):
-        data = {key.decode('utf-8'): value.decode('utf-8') for key, value in self.rd.hgetall(ip).items()}
-        data['ip'] = ip
-        return data
+        return self.Datawarn(ip, int(datadic['now']), int(datadic['day1']),
+                             int(datadic['day2']), int(datadic['day3']))
+
+    def refreshwarn(self, ip):
+        self.rd.hincrby(self.warnprefix+ip, 'now')
+        return
+
+    def clearwarn(self, ip):
+        self.rd.delete(self.warnprefix+ip)
+        return
+
+    def getip(self, ip):
+        datadic = {key.decode('utf-8'): value.decode('utf-8') for key, value in self.rd.hgetall(ip).items()}
+        return self.Datacache(ip, int(datadic['query']), int(datadic['order']),
+                              float(datadic['stime']), float(datadic['ltime']))
+
+    def setip(self, datasent):
+        self.rd.hmset(datasent.ip, {'query': 1, 'stime': datasent.querytime.timestamp(),
+                                    'ltime': datasent.querytime.timestamp(), 'order': 0})
+        return
+
+    def refreship(self, datasent):
+        if datasent.command == 'FlightShopping':
+            self.rd.hincrby(datasent.ip, 'query')
+        else:
+            self.rd.hincrby(datasent.ip, 'order')
+
+        self.rd.hset(datasent.ip, 'ltime', datasent.querytime.timestamp())
+        return
+
+    def clearip(self, datasent):
+        self.rd.delete(datasent.ip)
+        return
 
 
