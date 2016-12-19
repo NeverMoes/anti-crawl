@@ -96,7 +96,7 @@ def api_re(request):
                     cache.start()
                     return jsonres({'start': 'ok'})
             else:
-                jsonres(result=False)
+                return jsonres(result=False)
 
         elif param == 'stop':
             if mp.active_children():

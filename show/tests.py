@@ -14,7 +14,10 @@ print(mp.active_children()[0].name)
 
 time.sleep(10)
 
+print(mp.active_children())
+
 if mp.active_children():
+    print('a')
     data = list()
     sdate = datetime.datetime.strptime(mp.active_children()[0].name, '%Y-%m-%d')
     edate = sdate+datetime.timedelta(days=1)
@@ -32,6 +35,7 @@ if mp.active_children():
             sdate += interval
         else:
             break
+    print(data)
 
 
 

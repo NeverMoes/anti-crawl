@@ -121,7 +121,7 @@ class Cache(mp.Process):
         # 开始读取数据
         for i in range(indexloc, indexloc+datacount, 10000):
             # 一次读取10000条
-            print(i)
+            # print(i)
             self.mdb.cursor.execute('''select ip, querytime, command, index_id
                                        from {table} where index_id >= {index}
                                        limit 10000
@@ -236,7 +236,7 @@ class Cache(mp.Process):
         # 先删除cache和白名单中的缓存,
         # 再加入黑名单
         if isfromwlis:
-            self.rd.hdel(self.whitelist, ip)
+            self.rd.hdel(self.svmwhitelis, ip)
 
         self.rd.delete(ip)
         self.rd.sadd(self.svmblacklis, ip)
