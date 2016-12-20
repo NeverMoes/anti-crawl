@@ -236,7 +236,7 @@ class Cache(object):
         # 先删除cache和白名单中的缓存,
         # 再加入黑名单
         if isfromwlis:
-            self.rd.hdel(self.whitelist, ip)
+            self.rd.hdel(self.svmwhitelis, ip)
 
         self.rd.delete(ip)
         self.rd.sadd(self.svmblacklis, ip)

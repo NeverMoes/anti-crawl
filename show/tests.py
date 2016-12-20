@@ -1,48 +1,48 @@
-from utils.cacherun import Cache
-import multiprocessing as mp
-import datetime
-from show.mysql import Mysqldb
-import time
-
-db = Mysqldb()
-
-cache = Cache('2016-08-23')
-
-cache.start()
-
-print(mp.active_children()[0].name)
-
-time.sleep(10)
-
-print(mp.active_children())
-
-if mp.active_children():
-    print('a')
-    data = list()
-    sdate = datetime.datetime.strptime(mp.active_children()[0].name, '%Y-%m-%d')
-    edate = sdate+datetime.timedelta(days=1)
-    interval = datetime.timedelta(minutes=10)
-
-    while True:
-        if sdate != edate:
-            db.cursor.execute('''
-                              select '{stime}', count(ip)
-                              from procdata._ipcatched
-                              where `time` >= '{stime}'
-                              and `time` < '{etime}' '''.format(stime=sdate, etime=sdate + interval))
-            row = db.cursor.fetchone()
-            data.append({'time': row[0], 'querycount': row[1]})
-            sdate += interval
-        else:
-            break
-    print(data)
-
-
-
-
-# cache = Cache()
+# from utils.cacherun import Cache
+# import multiprocessing as mp
+# import datetime
+# from show.mysql import Mysqldb
+# import time
 #
-# cache.run()
+# db = Mysqldb()
+#
+# cache = Cache('2016-08-23')
+#
+# cache.start()
+#
+# print(mp.active_children()[0].name)
+#
+# time.sleep(10)
+#
+# print(mp.active_children())
+#
+# if mp.active_children():
+#     print('a')
+#     data = list()
+#     sdate = datetime.datetime.strptime(mp.active_children()[0].name, '%Y-%m-%d')
+#     edate = sdate+datetime.timedelta(days=1)
+#     interval = datetime.timedelta(minutes=10)
+#
+#     while True:
+#         if sdate != edate:
+#             db.cursor.execute('''
+#                               select '{stime}', count(ip)
+#                               from procdata._ipcatched
+#                               where `time` >= '{stime}'
+#                               and `time` < '{etime}' '''.format(stime=sdate, etime=sdate + interval))
+#             row = db.cursor.fetchone()
+#             data.append({'time': row[0], 'querycount': row[1]})
+#             sdate += interval
+#         else:
+#             break
+#     print(data)
+#
+
+from utils.cacheten import Cache
+
+cache = Cache()
+
+cache.run()
 
 # res = cache.getsvm(cache.Datacache(ip='114.80.10.1', order=1, query=100,
 #                                    stime=1471910400.0, ltime=1471996800.0))

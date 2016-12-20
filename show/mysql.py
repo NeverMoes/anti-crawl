@@ -9,13 +9,26 @@ from utils.const import const
 
 class Mysqldb(object):
     def __init__(self):
+        pass
+
+    def get_connetc(self):
         try:
             self.connect = mdb.connect(**const.DBCONF)
             self.cursor = self.connect.cursor()
         except Exception as e:
             print(e)
 
+    def close_connenct(self):
+        self.cursor.close()
+        self.connect.close()
+
+    def __del__(self):
+        self.cursor.close()
+        self.connect.close()
+
     def getsessiontabledate(self, startdate, enddate):
+
+        self.get_connetc()
 
         kindlist = ['duration', 'query', 'depature', 'arrival', 'variance', 'mean', 'error']
         connection = self.connect
@@ -29,6 +42,8 @@ class Mysqldb(object):
         # sql = 'SELECT * FROM %s WHERE date = %s'
 
         returnlist = []
+        allclass1 = 0
+        allclass2 = 0
         for i in range(7):
             tempdict = {}
             col = kindlist[i]
@@ -39,10 +54,10 @@ class Mysqldb(object):
         WHERE `kinds` = '{kind}' AND `date` = '{time}'
         '''.format(kind=col, time=datetime.datetime.strftime(date1, timeformat)))
                 result = cursor.fetchall()
-                tempdict['all'] = {'class2': 0, 'class1': 0}
+
                 for i in range(len(result)):
-                    tempdict['all']['class2'] += result[i][3]
-                    tempdict['all']['class1'] += result[i][4]
+                    allclass2 += result[i][3]
+                    allclass1 += result[i][4]
                     if result[i][2] in tempdict:
                         tempdict[result[i][2]]['class2'] += result[i][3]
                         tempdict[result[i][2]]['class1'] += result[i][4]
@@ -50,14 +65,23 @@ class Mysqldb(object):
                         tempdict[result[i][2]] = {'class2': result[i][3], 'class1': result[i][4]}
                 date1 += delta
             showlist = []
+            # tempdict = sorted(tempdict,key=lambda x:(x['range']))
+            # tempdict['all'] = {'class1':allclass1,'class2':allclass2}
+            # showlist.append({'range':'all','class2':allclass2,'class1':allclass1})
             for key in tempdict:
                 showlist.append({'range': key, 'class2': tempdict[key]['class2'], 'class1': tempdict[key]['class1']})
+            showlist = sorted(showlist, key=lambda x: (x['range']))
+            showlist.append({'range': 'all', 'class2': allclass2, 'class1': allclass1})
             temp2dict = {'kinds': col, 'data': showlist}
             returnlist.append(temp2dict)
 
+        self.close_connenct()
         return returnlist
 
     def setiplist(self, ip=None, type=None, time=None, istrash=None, label=None, isdel=False):
+
+        self.get_connetc()
+
         if isdel:
             self.cursor.execute('''delete from procdata.iplist
                                    where ip = '{ip}' '''.format(ip=ip))
@@ -67,18 +91,23 @@ class Mysqldb(object):
                                    VALUES ('{ip}', '{type}', '{time}', '{istrash}', '{label}')
                                    '''.format(ip=ip, type=type, time=time.replace('_', ' '),
                                               istrash=istrash, label=label))
+
+        self.close_connenct()
         return {'result': 'ok'}
 
     def getiplist(self):
+        self.get_connetc()
         data = list()
         self.cursor.execute('''select * from procdata.iplist''')
         for row in self.cursor.fetchall():
             data.append({'ip': row[0], 'type': row[1],
                          'time': row[2], 'istrash': row[3], 'label': row[4]})
+        self.close_connenct()
         return data
     # count, time
 
     def getcatchedcount(self, date):
+        self.get_connetc()
         data = list()
         date = datetime.datetime.strptime(date+' 00:00:00', '%Y-%m-%d %H:%M:%S')
         interval = datetime.timedelta(days=1)
@@ -89,9 +118,12 @@ class Mysqldb(object):
         '''.format(stime=date, etime=date+interval))
         for row in self.cursor.fetchall():
             data.append({'querycount': row[1], 'time': row[0]})
+        self.close_connenct()
         return data
 
     def getippiedata(self, date):
+        self.get_connetc()
+
         sql = "SELECT * FROM procdata.piedata WHERE time = %s"
         self.cursor.execute(sql, (date))
         result = self.cursor.fetchall()
@@ -106,9 +138,12 @@ class Mysqldb(object):
         tempdict['all'] = result[0][6]
 
         templist.append(tempdict)
+        self.close_connenct()
         return templist
 
     def gettenminutecount(self, date, ip):
+
+        self.get_connetc()
 
         timeformat = '%Y-%m-%d %H:%M:%S'
         date1 = date + ' 00:00:00'
@@ -147,22 +182,44 @@ class Mysqldb(object):
                 tempdict['buy'] = 0
             templist.append(tempdict)
             tempdate += delta
+            self.close_connenct()
         return templist
 
-    def ipwhere(self, ip):
-        tempip = ip.split('.')
-        ipnum = 0
-        ipnum += int(tempip[3]) + int(tempip[2]) * 256 + int(tempip[1]) * 256 * 256 + int(tempip[0]) * 256 * 256 * 256
-        sql = '''SELECT Country, Local
-              FROM {tbname}
-              WHERE StartIPNum <= {ipnum}
-              AND EndIPNum+1 > {ipnum}'''.format(tbname=const.IPWHERE, ipnum=ipnum)
-        self.cursor.execute(sql)
-        result = self.cursor.fetchall()
-        temp = result[0][0] + result[0][1]
-        return {'ipwhere': temp}
+    def ipwhere(self, ip, isref=False):
+
+        if isref:
+            tempip = ip.split('.')
+            ipnum = 0
+            ipnum += int(tempip[3]) + int(tempip[2]) * 256 + int(tempip[1]) * 256 * 256 + int(
+                tempip[0]) * 256 * 256 * 256
+            sql = '''SELECT Country, Local
+                  FROM {tbname}
+                  WHERE StartIPNum <= {ipnum}
+                  AND EndIPNum+1 > {ipnum}'''.format(tbname=const.IPWHERE, ipnum=ipnum)
+            self.cursor.execute(sql)
+            result = self.cursor.fetchall()
+            temp = result[0][0] + result[0][1]
+            return {'ipwhere': temp}
+
+        else:
+            self.get_connetc()
+            tempip = ip.split('.')
+            ipnum = 0
+            ipnum += int(tempip[3]) + int(tempip[2]) * 256 + int(tempip[1]) * 256 * 256 + int(tempip[0]) * 256 * 256 * 256
+            sql = '''SELECT Country, Local
+                  FROM {tbname}
+                  WHERE StartIPNum <= {ipnum}
+                  AND EndIPNum+1 > {ipnum}'''.format(tbname=const.IPWHERE, ipnum=ipnum)
+            self.cursor.execute(sql)
+            result = self.cursor.fetchall()
+            temp = result[0][0] + result[0][1]
+            self.close_connenct()
+            return {'ipwhere': temp}
 
     def route(self, ip=None, date=None):
+
+        self.get_connetc()
+
         data = list()
         if not ip:
             self.cursor.execute('''
@@ -185,9 +242,14 @@ class Mysqldb(object):
             '''.format(table=const.APIROUTE, date=date, ip=ip))
             for row in self.cursor.fetchall():
                 data.append({'route': row[0], 'querycount': row[1], 'ordercount': row[2]})
+
+            self.close_connenct()
             return data
 
     def top(self, date, type, limit):
+
+        self.get_connetc()
+
         data = list()
         if type == 'query':
             self.cursor.execute('''
@@ -225,7 +287,9 @@ class Mysqldb(object):
 
         if data:
             for row in data:
-                row['iploc'] = self.ipwhere(row['ip'])['ipwhere']
+                row['iploc'] = self.ipwhere(row['ip'], isref=True)['ipwhere']
+
+        self.close_connenct()
 
         return data
 
