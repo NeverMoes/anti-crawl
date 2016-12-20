@@ -20,6 +20,19 @@ from show import views as show_views
 
 urlpatterns = [
 
+    url(r'^api/deletesvm/$', show_views.api_deletesvm),
+
+    url(r'^api/makesvm/$', show_views.api_makesvm),
+
+    # api/showsvmmessage
+    url(r'^api/showsvmmessage/$', show_views.api_showsvmmessage),
+
+    # api/addtrain/?ip=xxxx&starttime=xxxx&class=x
+    url(r'^api/addtrain/$', show_views.api_addtrain),
+
+    # /api/selecttrainsession/
+    url(r'^api/selecttrainsession/$', show_views.api_selecttrainsession),
+
     # /api/getarrivalsession/?startdate=2016-09-01&enddate=2016-09-01
     url(r'^api/getarrivalsession/$', show_views.api_getsessiontabledate),
 

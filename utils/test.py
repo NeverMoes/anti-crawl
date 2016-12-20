@@ -76,3 +76,10 @@ and time < '2016-08-23 00:00:10'
                           where `time` >= '{stime}'
                           and `time` < '{etime}' '''
 
+
+'''
+
+UPDATE catchedcount SET querycount = querycount + 500
+WHERE `time` = '2016-08-25 23:30:00';
+
+'''

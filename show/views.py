@@ -7,7 +7,7 @@ import datetime
 from .mysql import Mysqldb
 from utils.cacherun import Cache
 from utils.const import const
-
+from django.views.decorators.csrf import csrf_exempt
 
 db = Mysqldb()
 
@@ -28,6 +28,47 @@ def jsonres(data=None, result=True, reason=None):
         res['code'] = 1
         res['msg'] = reason or 'error'
     return JsonResponse(res)
+
+
+def api_deletesvm(request):
+    if request.GET.get('name'):
+        db.deletesvm(request.GET['name'])
+        return jsonres({'deletesvm': 'ok'})
+    else:
+        return jsonres(result=False)
+
+
+def api_showsvmmessage(request):
+    return jsonres(db.showsvmmessage())
+
+@csrf_exempt
+def api_makesvm(request):
+    params = request.POST
+    if params.get('name') and params.get('datea') and params.get('dateb') and params.get('properties') and params.get('datas'):
+        return jsonres(db.makesvm(name=params['name'], datea=params['datea'], dateb=params['dateb'],
+                   properties=params['properties'], datas=params['datas']))
+    else:
+        return jsonres(result=False)
+
+
+def api_addtrain(request):
+    if request.GET.get('ip') and request.GET.get('starttime') and request.GET.get('class'):
+        return jsonres(db.addtrainsession(inip=request.GET.get('ip'),
+                                          instarttime=request.GET.get('starttime'),
+                                          inclass=request.GET.get('class')))
+    else:
+        return jsonres(result=False)
+
+
+def api_selecttrainsession(request):
+    if request.GET.get('datea') and request.GET.get('dateb') and request.GET.get('properties') and request.GET.get('details'):
+
+        return jsonres(db.selecttrainsession(datea=request.GET.get('datea'), dateb=request.GET.get('dateb'),
+                              properties=request.GET.get('properties'),
+                              details=request.GET.get('details')))
+
+    else:
+        return jsonres(result=False)
 
 
 def api_getsessiontabledate(request):
@@ -195,8 +236,9 @@ def api_top(request):
         return jsonres(result=False, reason='wrong param')
 
 
+@csrf_exempt
 def api(request):
-    return JsonResponse(request.GET)
+    return JsonResponse(request.POST)
 
 
 def index(request):

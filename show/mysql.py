@@ -2,7 +2,13 @@
 # -*- coding: <encoding name> -*-
 
 import pymysql as mdb
+from sklearn import svm
 import datetime
+import random
+import os
+import time
+from sklearn.externals import joblib
+import shutil
 
 from utils.const import const
 
@@ -11,20 +17,281 @@ class Mysqldb(object):
     def __init__(self):
         pass
 
+    def __del__(self):
+        self.cursor.close()
+        self.connect.close()
+
     def get_connetc(self):
         try:
             self.connect = mdb.connect(**const.DBCONF)
             self.cursor = self.connect.cursor()
         except Exception as e:
             print(e)
+        return
 
     def close_connenct(self):
         self.cursor.close()
         self.connect.close()
+        return
 
-    def __del__(self):
-        self.cursor.close()
-        self.connect.close()
+    ################################################
+
+    def deletesvm(self, name):
+        self.get_connetc()
+
+        BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        svmpathdir = os.path.join(BASE_DIR, 'untils', 'SVMmodel', name)
+        shutil.rmtree(svmpathdir)
+        sql = 'delete FROM procdata.svmmessage where name = %s'
+        self.cursor.execute(sql, (name))
+
+        self.close_connenct()
+        return
+
+    def showsvmmessage(self):
+        self.get_connetc()
+
+        sql = 'SELECT * FROM procdata.svmmessage'
+        self.cursor.execute(sql)
+        result = self.cursor.fetchall()
+        returnlist = []
+        for i in range(len(result)):
+            tempdict = {'name': result[i][0], 'time': datetime.datetime.strftime(result[i][1], '%Y-%m-%d %H:%M:%S'),
+                        'message': result[i][2], 'accuracy': result[i][3]}
+            returnlist.append(tempdict)
+
+        self.close_connenct()
+        return returnlist
+
+    def makesvm(self, name, datea, dateb, properties, datas):
+
+        self.get_connetc()
+
+        delta = datetime.timedelta(days=1)
+        timeformat = '%Y-%m-%d'
+        tempdate = datetime.datetime.strptime(dateb, timeformat)
+        tempdate += delta
+        dateb = tempdate.strftime(timeformat)
+        propertylist = properties.split('@')
+        propertystr = ''
+
+        trainx = []
+        trainy = []
+        testx = []
+        class1index = 0
+        class2index = 0
+        '''  临时用条件搜索设定的训练样本处理
+        indata = datas.split('')
+        tempclassindex = len(indata[0]-1)
+        for i in range(len(indata)):
+            trainx.append()
+            trainy.append()
+            if indata[i][tempclassindex] == 1:
+                class1index += 1
+            else:
+                class2index +=1
+        '''
+
+        for i in range(len(propertylist)):
+            if i != len(propertylist) - 1:
+                propertystr += propertylist[i] + ','
+            else:
+                propertystr += propertylist[i]
+
+        for i in range(len(datas)):
+            traintempliat = []
+            for j in range(len(propertylist)):
+                traintempliat.append(datas[i][propertylist[j]])
+            if datas[i]['class'] == 1:
+                class1index += 1
+                trainy.append(1)
+            else:
+                class2index += 1
+                trainy.append(2)
+            trainx.append(traintempliat)
+
+        self.cursor.execute('''SELECT {properties}
+    FROM procdata.trainsessiondiv
+    WHERE class = 1 AND `starttime` BETWEEN '{time1}' AND '{time2}'
+    '''.format(properties=propertystr, time1=datea, time2=dateb))
+        result = self.cursor.fetchall()
+        testall = []
+        propertycount = len(propertylist)
+        for i in range(len(result)):
+            templist = []
+            for j in range(propertycount):
+                templist.append(result[i][j])
+            testall.append(templist)
+        for i in range(len(testall)):
+            trainx.append(testall[i])
+            trainy.append(1)
+        class1index += len(testall)
+        testall = []
+        self.cursor.execute(
+            "SELECT {properties} FROM procdata.trainsessiondiv WHERE class = 2 AND `starttime` BETWEEN '{time1}' AND '{time2}'".format(
+                properties=propertystr, time1=datea, time2=dateb))
+        result = self.cursor.fetchall()
+        for i in range(len(result)):
+            templist = []
+            for j in range(propertycount):
+                templist.append(result[i][j])
+            testall.append(templist)
+        for i in range(len(testall)):
+            trainx.append(testall[i])
+            trainy.append(2)
+        class2index += len(testall)
+
+        self.cursor.execute('''SELECT {properties}
+    FROM procdata.sessiondiv
+    WHERE class = 1 AND `starttime` BETWEEN '{time1}' AND '{time2}'
+    '''.format(properties=propertystr, time1=datea, time2=dateb))
+        result = self.cursor.fetchall()
+
+        if (len(result) + class1index) < 2000:
+            delta2 = datetime.timedelta(days=15)
+            tempdate2 = tempdate + delta2
+            dateb2 = tempdate2.strftime(timeformat)
+            self.cursor.execute('''SELECT {properties}
+    FROM procdata.sessiondiv
+    WHERE class = 1 AND `starttime` BETWEEN '{time1}' AND '{time2}'
+    '''.format(properties=propertystr, time1=datea, time2=dateb2))
+            result = self.cursor.fetchall()
+
+        testall = []
+        propertycount = len(result[0])
+        for i in range(len(result)):
+            templist = []
+            for j in range(propertycount):
+                templist.append(result[i][j])
+            testall.append(templist)
+
+        random.shuffle(testall)
+        for i in range(2000 - class1index):
+            trainx.append(testall[i])
+            trainy.append(1)
+        testall = testall[(2000 - class1index):]
+        for i in range(100):
+            testx.append(testall[i])
+        self.cursor.execute('''SELECT {properties}
+    FROM procdata.sessiondiv
+    WHERE class = 2 AND `starttime` BETWEEN '{time1}' AND '{time2}'
+    '''.format(properties=propertystr, time1=datea, time2=dateb))
+        result = self.cursor.fetchall()
+
+        testall = []
+        propertycount = len(result[0])
+        for i in range(len(result)):
+            templist = []
+            for j in range(propertycount):
+                templist.append(result[i][j])
+            testall.append(templist)
+
+        random.shuffle(testall)
+        for i in range(2000 - class2index):
+            trainx.append(testall[i])
+            trainy.append(2)
+        testall = testall[(2000 - class1index):]
+        for i in range(100):
+            testx.append(testall[i])
+
+        model = svm.SVC(C=0.98, kernel='linear', probability=True)
+        model.fit(trainx, trainy)
+
+        accuracy = 0
+        testresult = model.predict(testx[:100])
+        for i in range(100):
+            if testresult[i] == 1:
+                accuracy += 1
+        testresult = model.predict(testx[100:])
+        for i in range(100):
+            if testresult[i] == 2:
+                accuracy += 1
+        accuracy = 1.0 * accuracy / 200
+
+        # 项目目录
+        BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+        svmpathdir = os.path.join(BASE_DIR, 'untils', 'SVMmodel', name)
+        svmpath = os.path.join(svmpathdir, 'svmmodel.pkl')
+
+        sql = 'INSERT INTO procdata.svmmessage ( name, createtime, includekind, accuracy) VALUES (%s, %s, %s, %s)'
+
+        self.cursor.execute(sql, (
+        name, time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time())), properties.replace("&", ","), accuracy))
+
+        os.makedirs(svmpathdir)
+        joblib.dump(model, svmpath)
+
+        self.close_connenct()
+
+        return
+
+    def selecttrainsession(self, datea, dateb, properties, details):
+
+        self.get_connetc()
+
+        propertylist = properties.split('@')
+        selectstr = ''
+        wherestr = ''
+        alllist = details.split('@')
+        for i in range(len(alllist)):
+            tempstr = alllist[i]
+            templist = tempstr.split('$')
+            if templist[1] == templist[2]:
+                wherestr += " AND " + templist[0] + " >= " + templist[1]
+            else:
+                wherestr += " AND " + templist[0] + " >= " + templist[1] + " AND " + templist[0] + " < " + templist[2]
+
+        for i in range(len(propertylist)):
+            if i != len(propertylist) - 1:
+                selectstr += propertylist[i] + ','
+            else:
+                selectstr += propertylist[i]
+        # --------------------------------------select与where语句完成--------------------
+
+        delta = datetime.timedelta(days=1)
+        temptime2 = datetime.datetime.strptime(dateb, '%Y-%m-%d')
+        temptime2 += delta
+        dateb = datetime.datetime.strftime(temptime2, '%Y-%m-%d')
+
+        self.cursor.execute('''SELECT ip,starttime,{properties}
+    FROM procdata.sessiondiv
+    WHERE `starttime` >= '{time1}' AND `starttime` < '{time2}'{where2}
+    '''.format(properties=selectstr, time1=datea, time2=dateb, where2=wherestr))
+        result = self.cursor.fetchall()
+
+        returnlist = []
+        for i in range(len(result)):
+            tempdict = {}
+            tempdict['ip'] = result[i][0]
+            tempdict['starttime'] = datetime.datetime.strftime(result[i][1], '%Y-%m-%d %H:%M:%S')
+            for j in range(len(propertylist)):
+                tempdict[propertylist[j]] = result[i][j + 2]
+
+            returnlist.append(tempdict)
+
+        self.close_connenct()
+
+        return returnlist
+
+    def addtrainsession(self, inip, instarttime, inclass):
+
+        instarttime = instarttime.replace('_', ' ')
+
+        self.get_connetc()
+
+        sql = 'SELECT * FROM procdata.sessiondiv WHERE ip = %s and starttime = %s'
+        self.cursor.execute(sql, (inip, instarttime))
+        result = self.cursor.fetchall()
+
+        if len(result[0]) > 0:
+            sql = 'INSERT INTO procdata.trainsessiondiv ( ip, starttime, endtime, duration, query, buy, depature, arrival, variance, mean, error, class) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+            self.cursor.execute(sql, (
+            result[0][0], result[0][1], result[0][2], result[0][3], result[0][4], result[0][5], result[0][6],
+            result[0][7], result[0][8], result[0][9], result[0][10], inclass))
+
+        self.close_connenct()
+        return
 
     def getsessiontabledate(self, startdate, enddate):
 
@@ -182,7 +449,8 @@ class Mysqldb(object):
                 tempdict['buy'] = 0
             templist.append(tempdict)
             tempdate += delta
-            self.close_connenct()
+
+        self.close_connenct()
         return templist
 
     def ipwhere(self, ip, isref=False):
