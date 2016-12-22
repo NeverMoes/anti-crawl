@@ -44,14 +44,14 @@ class Cache(object):
         self.mdb = Mysqldb()
         # self.mdb.cursor.execute('drop table {table}'.format(table=const.IPCATCHED))
 
-        self.mdb.cursor.execute('''
-        CREATE TABLE IF NOT EXISTS {table} (
-        `ip` varchar(50) NOT NULL,
-        `time` datetime NOT NULL,
-        `type` varchar(50) NOT NULL,
-        KEY  (`time`,`ip`, `type`)
-        ) ENGINE=MyISAM DEFAULT CHARSET=gbk;
-        '''.format(table=const.IPCATCHED))
+        # self.mdb.cursor.execute('''
+        # CREATE TABLE IF NOT EXISTS {table} (
+        # `ip` varchar(50) NOT NULL,
+        # `time` datetime NOT NULL,
+        # `type` varchar(50) NOT NULL,
+        # KEY  (`time`,`ip`, `type`)
+        # ) ENGINE=MyISAM DEFAULT CHARSET=gbk;
+        # '''.format(table=const.IPCATCHED))
         return
 
     def svm_init(self):
@@ -364,5 +364,6 @@ class Cache(object):
     def clearip(self, datasent):
         self.rd.delete(datasent.ip)
         return
+
 
 
