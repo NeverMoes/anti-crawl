@@ -13,6 +13,12 @@ import shutil
 from utils.const import const
 
 
+from utils.const import _const
+
+const=_const()
+
+const.XXXX = ''
+
 
 class Mysqldb(object):
     def __init__(self):
