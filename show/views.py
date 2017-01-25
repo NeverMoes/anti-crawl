@@ -4,12 +4,10 @@ from django.http import HttpResponse
 from .form import LoginForm
 import multiprocessing as mp
 import datetime
-from .mysql import Mysqldb
+import simplejson
+from .mysql import Mysqldb as db
 from utils.cacherun import Cache
-from utils.const import const
 from django.views.decorators.csrf import csrf_exempt
-
-db = Mysqldb()
 
 
 def jsonres(data=None, result=True, reason=None):
@@ -43,10 +41,24 @@ def api_showsvmmessage(request):
 
 @csrf_exempt
 def api_makesvm(request):
-    params = request.POST
-    if params.get('name') and params.get('datea') and params.get('dateb') and params.get('properties') and params.get('datas'):
-        return jsonres(db.makesvm(name=params['name'], datea=params['datea'], dateb=params['dateb'],
+
+    #params = simplejson.loads(request.POST)
+    req = simplejson.loads(request.body)
+    #req = request.POST
+    '''
+    print (params)
+    if params.get('svmname') and params.get('datea') and params.get('dateb') and params.get('properties') and params.get('datas'):
+        return jsonres(db.makesvm(name=params['svmname'], datea=params['datea'], dateb=params['dateb'],
                    properties=params['properties'], datas=params['datas']))
+    else:
+        return jsonres(result=False)
+
+    '''
+    #'''
+    print (req)
+    if req['svmname'] and req['datea'] and req['dateb'] and req['properties'] and req['datas']:
+        return jsonres(db.makesvm(name=req['svmname'], datea=req['datea'], dateb=req['dateb'],
+                                  properties=req['properties'], datas=req['datas']))
     else:
         return jsonres(result=False)
 

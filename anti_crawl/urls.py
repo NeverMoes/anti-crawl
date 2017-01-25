@@ -20,46 +20,88 @@ from show import views as show_views
 
 urlpatterns = [
 
+    ######################################################
+    # 格式：
+    # url(r'^api/deletesvm/$', show_views.api_deletesvm),
+    # 访问示例
+    # 简单说明(可省略)
+    ######################################################
+
+    ##########################################
+    # 示例
+    ##########################################
+
+    #########################################
+    url(r'^api/route/$', show_views.api_route),
+    # /api/route/?date=2016-08-24
+    # top模块用的
+    ########################################
+
+
     url(r'^api/deletesvm/$', show_views.api_deletesvm),
+    #
+
 
     url(r'^api/makesvm/$', show_views.api_makesvm),
+    #
 
-    # api/showsvmmessage
+
     url(r'^api/showsvmmessage/$', show_views.api_showsvmmessage),
+    # api/showsvmmessage
 
-    # api/addtrain/?ip=xxxx&starttime=xxxx&class=x
+
     url(r'^api/addtrain/$', show_views.api_addtrain),
+    # api/addtrain/?ip=xxxx&starttime=xxxx&class=x
 
-    # /api/selecttrainsession/
+
+
     url(r'^api/selecttrainsession/$', show_views.api_selecttrainsession),
+    # /api/selecttrainsession/
 
-    # /api/getarrivalsession/?startdate=2016-09-01&enddate=2016-09-01
+
     url(r'^api/getarrivalsession/$', show_views.api_getsessiontabledate),
+    # /api/getarrivalsession/?startdate=2016-09-01&enddate=2016-09-01
 
-    # api/getiplist/?
+
+
     url(r'^api/getiplist/$', show_views.api_getiplist),
-    # api/setiplist/?ip=a&type=a&time=2016-08-24_00:00:00&istrash=false&isdel=false
+    # api/getiplist/?
+
+
     url(r'^api/setiplist/$', show_views.api_setiplist),
+    # api/setiplist/?ip=a&type=a&time=2016-08-24_00:00:00&istrash=false&isdel=false
 
-    # /api/getcatchedcount/?date=2016-08-23
+
+
     url(r'^api/getcatchedcount/$', show_views.api_getcatchedcount),
-    # /api/getippiedata/?date=2016-08-23
-    url(r'^api/getippiedata/$', show_views.api_getippiedata),
+    # /api/getcatchedcount/?date=2016-08-23
 
-    # /api/gettenminutecount/?date=2016-08-23&ip=61.155.159.41
+
+
+    url(r'^api/getippiedata/$', show_views.api_getippiedata),
+    # /api/getippiedata/?date=2016-08-23
+
+
     url(r'^api/gettenminutecount/$', show_views.api_gettenminutecount),
+    # /api/gettenminutecount/?date=2016-08-23&ip=61.155.159.41
+
 
     url(r'^api/ipwhere/$', show_views.api_ipwhere),
+    #
 
-    # /api/re/?params=start&date=2016-08-23
+
     url(r'^api/re/$', show_views.api_re),
+    # /api/re/?params=start&date=2016-08-23
+
+
     url(r'^api/$', show_views.api),
+    #
 
-    # api/top/?limit=10&type=query&date=2016-8-24
+
     url(r'^api/top/$', show_views.api_top),
+    # api/top/?limit=10&type=query&date=2016-8-24
 
-    # /api/route/?date=2016-08-24
-    url(r'^api/route/$', show_views.api_route),
+
     url(r'^$', show_views.index),
     url(r'^admin/', admin.site.urls),
 ]
