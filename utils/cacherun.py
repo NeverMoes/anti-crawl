@@ -70,6 +70,7 @@ class Cache(mp.Process):
         # 导入svm模型
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
         svmpath = os.path.join(BASE_DIR, 'svmmodel', 'svmmodel.pkl')
+
         self.svm_model = joblib.load(svmpath)
 
         svmpath = os.path.join(BASE_DIR, 'model20', 'svmmodel.pkl')
@@ -188,6 +189,7 @@ class Cache(mp.Process):
                 self.refreship(datasent)
                 return
 
+
         # 查询cache历史记录
         if self.rd.exists(self.warnprefix+datasent.ip):
             if datasent.command == 'FlightShopping':
@@ -201,6 +203,7 @@ class Cache(mp.Process):
             else:
                 self.clearwarn(datasent.ip)
                 return
+
 
         # 判断cache表是否已存在数据
         if self.rd.exists(datasent.ip):

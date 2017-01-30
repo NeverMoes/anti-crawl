@@ -1,5 +1,6 @@
 from collections import namedtuple
 from enum import Enum
+from utils.consts import _const
 
 """
 数据包和配置的定义
@@ -8,7 +9,7 @@ from enum import Enum
 
 Rawpak = namedtuple('Rawpak', ['ip', 'querytime', 'command', 'depature', 'arrival', 'result'])
 """
-原始的数据包，即选出的一部分有意义的数据进入cache
+原始的数据包
 id         查询的id号
 ip         ip地址
 depature   出发地
@@ -21,6 +22,7 @@ result     查询结果
 Rdpak = namedtuple('Rdpak', ['ip', 'query', 'order', 'stime', 'ltime'])
 """
 进入redis的数据包
+!!! 注意这个数据包内的时间为时间戳
 ip     ip地址
 query  查询次数
 order  订票次数
@@ -38,10 +40,16 @@ type  被捕捉的类型
 """
 
 
-Svmpak = namedtuple('Svmpak', ['id', 'ip', 'depature', 'arrival', 'querytime', 'result'])
+Svmpak = namedtuple('Svmpak', ['duration', 'querycount', 'depcount', 'arrcount', 'errpro', 'std', 'mean'])
 """
-进入svm的数据包
-ip
+svm所需要的数据
+duration     持续时间
+querycount   查询数
+depcount     出发地数目
+arrcount     到达地数目
+errpro       查询错误率
+std          标准差
+mean         平均值
 
 """
 
@@ -55,7 +63,7 @@ file   是否将log输出到文件中
 """
 
 
-Cacheconf = Enum('Cacheconf', ('socket', 'server', 'local'))
+Cacheconf = Enum('Cacheconf', ('SOCKET', 'SERVER', 'LOCAL'))
 """
 cache实例化的配置
 socket   监听端口，正式生产环境使用
@@ -63,4 +71,13 @@ server   从服务器中启动，即模拟实时
 local    本地跑
 """
 
+cacheconf = _const()
+
+cacheconf.TIMEOUT = 7200
+cacheconf.BACKUPTABLE = 'cachedata.backup'
+cacheconf.CATCHEDTABLE = 'cachedata.catchedinfo'
+
+cacheconf.SVMPROBABILITY = 0.9
+
+cacheconf.FILELOG_PATH = 'catchedlog.log'
 
