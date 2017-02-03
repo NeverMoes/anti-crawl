@@ -63,21 +63,19 @@ file   是否将log输出到文件中
 """
 
 
-Cacheconf = Enum('Cacheconf', ('SOCKET', 'SERVER', 'LOCAL'))
-"""
-cache实例化的配置
-socket   监听端口，正式生产环境使用
-server   从服务器中启动，即模拟实时
-local    本地跑
-"""
 
 cacheconf = _const()
 
-cacheconf.TIMEOUT = 7200
-cacheconf.BACKUPTABLE = 'cachedata.backup'
-cacheconf.CATCHEDTABLE = 'cachedata.catchedinfo'
+cacheconf.DBCONF = {'host': '127.0.0.1', 'port': 3306,
+                'user': 'root', 'passwd': 'yi', 'charset': 'utf8'}
 
+cacheconf.TIMEOUT = 7200
 cacheconf.SVMPROBABILITY = 0.9
 
+cacheconf.BACKUPTABLE = 'cachedata.backup'
+cacheconf.CATCHEDTABLE = 'cachedata.catchedinfo'
 cacheconf.FILELOG_PATH = 'catchedlog.log'
+
+
+
 

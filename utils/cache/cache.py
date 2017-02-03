@@ -2,72 +2,66 @@ import pymysql
 import multiprocessing as processing
 import multiprocessing.dummy as threading
 from queue import LifoQueue
+
 from .core import Core
-from utils.consts import const
 from .pak import *
+from . import output
+from . import input
 
 
 class Cache(processing.Process):
     """
-    负责对进出core，进行调度的类
+
     """
 
-    def __init__(self, cacheconf):
+    def __init__(self, server=False, local=False, sock=False):
         super().__init__()
-        self.init_conf(cacheconf)
-        self.init_core(cacheconf)
 
         self.queue = LifoQueue()
         self.backup_queue = LifoQueue()
         self.core_queue = LifoQueue()
+
+        self.input = None
+        self.outputs = list()
+
         self.backupdb = Backupdb(self.backup_queue)
-        return
+        self.core = Core(self.core_queue)
+
+        if server and local and sock:
+            raise Exception('wrong params')
+
+        if server:
+            self.outputs.extend([output.Database()])
+            self.input = None
+        elif local:
+            self.outputs.extend([output.Database(), output.Logger()])
+            self.input = None
+        elif sock:
+            self.outputs.extend([output.Database(), output.Logger(), output.FileLogger()])
+            self.input = None
+        else:
+            raise Exception('wrong params')
 
     def run(self):
-        self.core.run()
-        self.backupdb.run()
+        self.core.start()
+        self.backupdb.start()
+
+        while True:
+            pass
+
         return
 
-    def init_conf(self, cacheconf):
-        """
-        根据不同的配置实例化不同的cache对象
-        以便确定采用怎样的数据获取方式
-        """
-        if cacheconf == Cacheconf.SOCKET:
-            pass
-        if cacheconf == Cacheconf.LOCAL:
-            pass
-        if cacheconf == Cacheconf.SERVER:
-            pass
+    def output(self, rawpak):
+        catchedpak = Catchedpak(
+            ip=rawpak.ip,
+            time=rawpak.querytime,
+            type='cache'
+        )
+        [output.output(catchedpak) for output in self.outputs]
         return
 
-    def init_core(self, coreconf):
-        """
-        根据cache配置决定不同的core配置
-        确定输出的方向
-        """
 
-        if cacheconf == Cacheconf.SOCKET:
-            coreconf = Coreconf(
-                log=True,
-                db=True,
-                file=True
-            )
-        if cacheconf == Cacheconf.LOCAL:
-            coreconf = Coreconf(
-                log=True,
-                db=True,
-                file=False
-            )
-        if cacheconf == Cacheconf.SERVER:
-            coreconf = Coreconf(
-                log=False,
-                db=True,
-                file=False
-            )
 
-        self.core = Core(coreconf, self.core_queue)
-        return
 
     def sent(self, rawpak):
         """
@@ -84,15 +78,16 @@ class Cache(processing.Process):
         return
 
 
+
 class Backupdb(threading.Process):
     """
-    对所有数据进行备份供svm进行使用
+    对所有进入cache的数据进行备份供svm进行使用
     """
 
     def __init__(self, queue):
         super().__init__(name='db_backup')
         self.queue = queue
-        self.connection = pymysql.connect(**const.DBCONF)
+        self.connection = pymysql.connect(**cacheconf.DBCONF)
         self.cursor = self.connection.cursor()
 
         self.cursor.execute(
@@ -127,8 +122,12 @@ class Backupdb(threading.Process):
             '(`ip`, `querytime`, `command`, `depature`, `arrival`, `result`)\n'
             'VALUES (\'{ip}\', \'{querytime}\', \'{command}\', \'{depature}\', \'{arrival}\', \'{result}\')\n'
         ).format(
-            ip=rawpak.ip, querytime=rawpak.querytime,
-            command=rawpak.command, depature=rawpak.depature,
-            arrival=rawpak.arrival, result=rawpak.result)
+            ip=rawpak.ip,
+            querytime=rawpak.querytime,
+            command=rawpak.command,
+            depature=rawpak.depature,
+            arrival=rawpak.arrival,
+            result=rawpak.result
+        )
         self.cursor.execute(basesql)
         return

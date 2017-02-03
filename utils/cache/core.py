@@ -1,6 +1,5 @@
 import multiprocessing.dummy as threading
 import redis
-import logging
 import os
 import datetime
 import pymysql
@@ -8,7 +7,6 @@ from sklearn.externals import joblib
 import numpy as np
 from utils.consts import const
 from .pak import *
-import sys
 
 
 class Algorithm(object):
@@ -115,38 +113,17 @@ class Algorithm(object):
 
 class Core(threading.Process):
     """
-    算法的多线程及输出封装层
+    算法的核心模块
     """
 
-    def __init__(self, conf, queue):
+    def __init__(self, queue):
         super().__init__()
         self.queue = queue
-        self.init_conf(conf)
-        self.algorithm = Algorithm()
         return
 
     def run(self):
         rawpak = self.queue.get()
         self.rec(rawpak)
-
-    def init_conf(self, conf):
-        self.outputs = list()
-        if conf.db:
-            self.outputs.append(Database())
-        if conf.log:
-            self.outputs.append(Logger())
-        if conf.file:
-            self.outputs.append(FileLogger())
-        return
-
-    def output(self, rawpak):
-        catchedpak = Catchedpak(
-            ip=rawpak.ip,
-            time=rawpak.querytime,
-            type='cache'
-        )
-        [output.output(catchedpak) for output in self.outputs]
-        return
 
     def rec(self, rawpak):
         if self.algorithm.judge(rawpak):
@@ -183,16 +160,21 @@ class Svmjudger(object):
         return
 
     def fetch_svmpak(self, rdpak):
-        self.cursor.execute('''SELECT ip, depature, arrival, querytime, result
-                                   FROM {table}
-                                   WHERE ip = '{ip}'
-                                   AND querytime
-                                   BETWEEN '{stime}'
-                                   AND '{etime}'
-                                   ORDER BY querytime
-                                '''.format(table=cacheconf.BACKUPTABLE, ip=rdpak.ip,
-                                           stime=datetime.datetime.fromtimestamp(rdpak.stime),
-                                           etime=datetime.datetime.fromtimestamp(rdpak.ltime)))
+        self.cursor.execute(
+            ('SELECT ip, depature, arrival, querytime, result\n'
+             'FROM {table}\n'
+             'WHERE ip = \'{ip}\'\n'
+             'AND querytime\n'
+             'BETWEEN \'{stime}\'\n'
+             'AND \'{etime}\'\n'
+             'ORDER BY querytime\n'
+             ).format(
+                table=cacheconf.BACKUPTABLE,
+                ip=rdpak.ip,
+                stime=datetime.datetime.fromtimestamp(rdpak.stime),
+                etime=datetime.datetime.fromtimestamp(rdpak.ltime)
+            )
+        )
 
         dataraws = [Rawpak(*row) for row in self.cursor.fetchall()]
         querytime = list()
@@ -210,11 +192,16 @@ class Svmjudger(object):
         for i in range(len(dataraws) - 1):
             interval.append(querytime[i + 1].timestamp() - querytime[i].timestamp())
 
-        return Svmpak(duration=rdpak.ltime - rdpak.stime,
-                      querycount=len(dataraws), depcount=len(set(depature)),
-                      arrcount=len(set(arrival)), errpro=errcount / (len(dataraws) + 1),
-                      std=np.array(interval).std(),
-                      mean=np.array(interval).mean())
+        return Svmpak(
+            duration=rdpak.ltime - rdpak.stime,
+            querycount=len(dataraws),
+            depcount=len(set(depature)),
+            arrcount=len(set(arrival)),
+            errpro=errcount / (len(dataraws) + 1),
+            std=np.array(interval).std(),
+            mean=np.array(interval).mean()
+        )
+
 
     def judge(self, rdpak):
         svmpak = self.fetch_svmpak(rdpak)
@@ -224,70 +211,3 @@ class Svmjudger(object):
             return True
         else:
             return False
-
-
-class Output(object):
-    """
-    输出的抽象类
-    """
-
-    def output(self, catchedpak):
-        raise NotImplementedError
-
-
-class Database(Output):
-    """
-    数据库的实例
-    """
-
-    def __init__(self):
-        self.connection = pymysql.connect(**const.DBCONF)
-        self.cursor = self.connection.cursor()
-
-        self.cursor.execute(
-            'CREATE TABLE cachedata.catchedinfo (\n'
-            '`ip` varchar(30) NOT NULL,\n'
-            '`querytime` datetime NOT NULL,\n'
-            '`type` varchar(30) DEFAULT NULL,\n'
-            ') ENGINE=MyISAM DEFAULT CHARSET=utf8\n'
-        )
-
-    def output(self, catchedpak):
-        self.cursor.execute((
-            'insert into {table}\n'
-            '(`ip`, `time`, `type`)\n'
-            'VALUES (\'{ip}\', \'{time}\', \'{type}\')'
-        ).format(
-            table=cacheconf.CATCHEDTABLE,
-            ip=catchedpak.ip,
-            time=catchedpak.time,
-            type='cache')
-        )
-
-
-class Logger(Output):
-    """
-    日志的实例
-    """
-
-    def __init__(self):
-        self.logger = logging.getLogger('logger')
-        self.logger.addHandler(logging.StreamHandler(sys.stdout))
-        self.logger.setLevel(logging.INFO)
-
-    def output(self, catchedpak):
-        self.logger.info('ip: ' + str(catchedpak.ip) + ', time: ' + str(catchedpak.time))
-
-
-class FileLogger(Output):
-    """
-    文件日志的实例
-    """
-
-    def __init__(self):
-        self.logger = logging.getLogger('filelogger')
-        self.logger.addHandler(logging.FileHandler(cacheconf.FILELOG_PATH))
-        self.logger.setLevel(logging.INFO)
-
-    def output(self, catchedpak):
-        self.logger.info('ip: ' + str(catchedpak.ip) + ', time: ' + str(catchedpak.time))

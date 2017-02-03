@@ -11,6 +11,13 @@ from sklearn.externals import joblib
 import shutil
 from utils.consts import const
 
+'''
+全部设置成静态方法
+不保留状态
+然后使用上下文管理器连接数据库
+
+'''
+
 
 class Mysqldb(object):
 
