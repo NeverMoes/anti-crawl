@@ -1,31 +1,33 @@
-import multiprocessing.dummy as threading
 import redis
-import os
 import datetime
 import pymysql
 from sklearn.externals import joblib
 import numpy as np
-from utils.consts import const
 from .pak import *
 
 
-class Algorithm(object):
+class Core(object):
     """
     算法具体实现
     """
 
-    def __init__(self):
+    def __init__(self, connpool):
+        super().__init__()
         self.init_redis()
         self.kname_whitelist = 'whiteset'
         self.kname_blacklist = 'blackset'
-        self.svmjudger = Svmjudger()
+        self.svmpre = Svmpredictor(connpool)
+        return
 
     def init_redis(self):
+        """
+        redis的客户端是线程和进程都安全的
+        """
         self.rd = redis.StrictRedis()
         self.rd.flushall()
         return
 
-    def judge(self, rawpak):
+    def predict(self, rawpak):
 
         if self.query_whitelist(rawpak):
             return False
@@ -57,7 +59,7 @@ class Algorithm(object):
         if querytime < 30:
             return False
         elif querytime == 50:
-            if self.svmjudger.judge(self.fetch_rdpak(rawpak)):
+            if self.svmpre.predict(self.fetch_rdpak(rawpak)):
                 return True
             else:
                 return False
@@ -111,36 +113,10 @@ class Algorithm(object):
         return
 
 
-class Core(threading.Process):
-    """
-    算法的核心模块
-    """
-
-    def __init__(self, queue):
-        super().__init__()
-        self.queue = queue
-        return
-
-    def run(self):
-        rawpak = self.queue.get()
-        self.rec(rawpak)
-
-    def rec(self, rawpak):
-        if self.algorithm.judge(rawpak):
-            self.output(rawpak)
-            return True
-        else:
-            return False
-
-
-class Svmjudger(object):
-    def __init__(self):
+class Svmpredictor(object):
+    def __init__(self, connpool):
+        self.connpool = connpool
         self.init_model()
-        self.init_db()
-
-    def init_db(self):
-        self.connection = pymysql.connect(**const.DBCONF)
-        self.cursor = self.connection.cursor()
 
     def init_model(self):
         # utils/目录下
@@ -160,7 +136,9 @@ class Svmjudger(object):
         return
 
     def fetch_svmpak(self, rdpak):
-        self.cursor.execute(
+        conn = self.connpool.connect()
+        cursor = conn.cursor()
+        cursor.execute(
             ('SELECT ip, depature, arrival, querytime, result\n'
              'FROM {table}\n'
              'WHERE ip = \'{ip}\'\n'
@@ -175,8 +153,9 @@ class Svmjudger(object):
                 etime=datetime.datetime.fromtimestamp(rdpak.ltime)
             )
         )
+        dataraws = [Rawpak(*row) for row in cursor.fetchall()]
+        conn.close()
 
-        dataraws = [Rawpak(*row) for row in self.cursor.fetchall()]
         querytime = list()
         depature = list()
         arrival = list()
@@ -202,8 +181,7 @@ class Svmjudger(object):
             mean=np.array(interval).mean()
         )
 
-
-    def judge(self, rdpak):
+    def predict(self, rdpak):
         svmpak = self.fetch_svmpak(rdpak)
         resultpro = self.svm_model.predict_proba([svmpak])[0][1]
 

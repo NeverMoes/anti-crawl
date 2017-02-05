@@ -1,55 +1,83 @@
 import pymysql
+import sqlalchemy.pool as pool
 import multiprocessing as processing
 import multiprocessing.dummy as threading
 from queue import LifoQueue
+import concurrent.futures
+import socket
+import signal
 
 from .core import Core
 from .pak import *
-from . import output
-from . import input
+from . import outputor
+from . import inputor
 
 
 class Cache(processing.Process):
     """
-
+    进程封装，处理输入和输出的类
     """
 
     def __init__(self, server=False, local=False, sock=False):
         super().__init__()
 
         self.queue = LifoQueue()
-        self.backup_queue = LifoQueue()
-        self.core_queue = LifoQueue()
 
-        self.input = None
-        self.outputs = list()
+        self.inputor = None
+        self.outputors = list()
+        self.watcher = None
 
-        self.backupdb = Backupdb(self.backup_queue)
-        self.core = Core(self.core_queue)
+        self.connpool = pool.QueuePool(
+            lambda: pymysql.connect(**cacheconf.DBCONF),
+            pool_size=10,
+            max_overflow=10
+        )
+
+        self.backupdb = Backupdb(self.connpool)
+        self.core = Core(self.connpool)
 
         if server and local and sock:
             raise Exception('wrong params')
 
         if server:
-            self.outputs.extend([output.Database()])
-            self.input = None
+            self.outputors.extend([outputor.Database(self.connpool)])
+            self.inputor = inputor.Socket()
+            self.watcher = Watcher()
         elif local:
-            self.outputs.extend([output.Database(), output.Logger()])
-            self.input = None
+            self.outputors.extend([outputor.Database(self.connpool), outputor.Logger()])
+            self.inputor = inputor.Database()
         elif sock:
-            self.outputs.extend([output.Database(), output.Logger(), output.FileLogger()])
-            self.input = None
+            self.outputors.extend([outputor.Database(self.connpool), outputor.Logger(), outputor.FileLogger()])
+            self.inputor = inputor.Database()
         else:
             raise Exception('wrong params')
 
     def run(self):
-        self.core.start()
-        self.backupdb.start()
+        if not self.watcher:
+            self.watcher.start()
 
-        while True:
-            pass
-
+        with concurrent.futures.ProcessPoolExecutor(max_workers=5) as executor:
+            """
+            进程池
+            使用mapreduce方法对数据进行处理
+            """
+            for rawpak, result in zip(self.get_input(), executor.map(self.predict)):
+                if result:
+                    self.output(rawpak)
+                else:
+                    pass
         return
+
+    def predict(self, rawpak):
+        self.backupdb.backup(rawpak)
+
+        if self.core.predict(rawpak):
+            return True
+        else:
+            return False
+
+    def get_input(self):
+        pass
 
     def output(self, rawpak):
         catchedpak = Catchedpak(
@@ -57,40 +85,65 @@ class Cache(processing.Process):
             time=rawpak.querytime,
             type='cache'
         )
-        [output.output(catchedpak) for output in self.outputs]
+        [outputor.output(catchedpak) for outputor in self.outputors]
         return
 
+    def input(self):
+        return self.inputor.input()
+
+
+class Watcher(threading.Process):
+    """
+    服务器用的
+    当cache在后台运行时
+    这个线程会监听一个文件
+    当服务器接受请求时，会找到这个监听的文件关闭后台的cache
+    """
+    def __init__(self):
+        super().__init__()
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+
+    def run(self):
+        if os.path.exists(cacheconf.SOCK_PATH):
+            os.unlink(cacheconf.SOCK_PATH)
+        self.sock.bind(cacheconf.SOCK_PATH)
+        self.sock.listen(0)
+
+        while True:
+            connection, address = self.sock.accept()
+            data = connection.recv(1024)
+            if data == 'close'.encode('utf-8'):
+                os.kill(os.getpid(), signal.SIGTERM)
+            else:
+                pass
+
+"""
+用于关闭cache的代码
+
+client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+try:
+    client.connect(cacheconf.SOCK_PATH)
+except ConnectionRefusedError :
+    pass
+else:
+    client.send('close'.encode('utf-8'))
+finally:
+    client.close()
+"""
 
 
 
-    def sent(self, rawpak):
-        """
-        维护队列并对对原始数据进行转发
-        """
-        self.core_queue.put(rawpak)
-        self.backup_queue.put(rawpak)
-        return
-
-    def rec(self):
-        """
-        所有进入cache数据的统一入口，转化成统一的数据格式并填入队列
-        """
-        return
-
-
-
-class Backupdb(threading.Process):
+class Backupdb(object):
     """
     对所有进入cache的数据进行备份供svm进行使用
     """
 
-    def __init__(self, queue):
-        super().__init__(name='db_backup')
-        self.queue = queue
-        self.connection = pymysql.connect(**cacheconf.DBCONF)
-        self.cursor = self.connection.cursor()
+    def __init__(self, connpool):
+        self.connpool = connpool
 
-        self.cursor.execute(
+        conn = self.connpool.connect()
+        cursor = conn.cursor()
+        cursor.execute(
             'create table if not exists cachedata.backup(\n'
             '`ip` varchar(30) DEFAULT NULL,\n'
             '`querytime` datetime NOT NULL,\n'
@@ -102,18 +155,8 @@ class Backupdb(threading.Process):
             'KEY `ip` (`ip`)\n'
             ') ENGINE=MyISAM DEFAULT CHARSET=gbk\n'
         )
-        return
+        conn.close()
 
-    def __del__(self):
-        self.cursor.execute("DROP TABLE IF EXISTS {table}".format(table=cacheconf.BACKUPTABLE))
-        self.cursor.close()
-        self.connection.close()
-        return
-
-    def run(self):
-        while True:
-            rawpak = self.queue.get(block=True)
-            self.backup(rawpak)
         return
 
     def backup(self, rawpak):
@@ -129,5 +172,8 @@ class Backupdb(threading.Process):
             arrival=rawpak.arrival,
             result=rawpak.result
         )
-        self.cursor.execute(basesql)
+        conn = self.connpool.connect()
+        cursor = conn.cursor()
+        cursor.execute(basesql)
+        conn.close()
         return

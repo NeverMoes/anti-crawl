@@ -1,11 +1,9 @@
-import pymysql
 import logging
 import sys
 from .pak import *
-from utils.consts import const
 
 
-class Output(object):
+class Outputor(object):
     """
     输出的抽象类
     """
@@ -14,25 +12,29 @@ class Output(object):
         raise NotImplementedError
 
 
-class Database(Output):
+class Database(Outputor):
     """
     数据库的实例
     """
 
-    def __init__(self):
-        self.connection = pymysql.connect(**const.DBCONF)
-        self.cursor = self.connection.cursor()
+    def __init__(self, connpool):
+        self.connpool = connpool
 
-        self.cursor.execute(
+        conn = self.connpool.connect()
+        cursor = conn.cursor()
+        cursor.execute(
             'CREATE TABLE cachedata.catchedinfo (\n'
             '`ip` varchar(30) NOT NULL,\n'
             '`querytime` datetime NOT NULL,\n'
             '`type` varchar(30) DEFAULT NULL,\n'
             ') ENGINE=MyISAM DEFAULT CHARSET=utf8\n'
         )
+        conn.close()
 
     def output(self, catchedpak):
-        self.cursor.execute(
+        conn = self.connpool.connect()
+        cursor = conn.cursor()
+        cursor.execute(
             ('insert into {table}\n'
              '(`ip`, `time`, `type`)\n'
              'VALUES (\'{ip}\', \'{time}\', \'{type}\')'
@@ -43,9 +45,10 @@ class Database(Output):
                 type='cache'
             )
         )
+        conn.close()
 
 
-class Logger(Output):
+class Logger(Outputor):
     """
     日志的实例
     """
@@ -59,7 +62,7 @@ class Logger(Output):
         self.logger.info('ip: ' + str(catchedpak.ip) + ', time: ' + str(catchedpak.time))
 
 
-class FileLogger(Output):
+class FileLogger(Outputor):
     """
     文件日志的实例
     """

@@ -1,6 +1,6 @@
 from collections import namedtuple
-from enum import Enum
 from utils.consts import _const
+import os
 
 """
 数据包和配置的定义
@@ -64,6 +64,10 @@ file   是否将log输出到文件中
 
 
 
+# /utils
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
 cacheconf = _const()
 
 cacheconf.DBCONF = {'host': '127.0.0.1', 'port': 3306,
@@ -74,8 +78,10 @@ cacheconf.SVMPROBABILITY = 0.9
 
 cacheconf.BACKUPTABLE = 'cachedata.backup'
 cacheconf.CATCHEDTABLE = 'cachedata.catchedinfo'
-cacheconf.FILELOG_PATH = 'catchedlog.log'
 
+
+cacheconf.FILELOG_PATH = 'catchedlog.log'
+cacheconf.SOCK_PATH = os.path.join(BASE_DIR, 'cache.sock')
 
 
 

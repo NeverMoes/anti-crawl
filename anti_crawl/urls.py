@@ -90,7 +90,7 @@ urlpatterns = [
     #
 
 
-    url(r'^api/re/$', show_views.api_re),
+    # url(r'^api/re/$', show_views.api_re),
     # /api/re/?params=start&date=2016-08-23
 
 

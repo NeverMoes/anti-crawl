@@ -3,7 +3,7 @@ import pymysql
 from .pak import *
 
 
-class Input(object):
+class Inputor(object):
     """
     输入实例的抽象类
     """
@@ -11,7 +11,7 @@ class Input(object):
         raise NotImplementedError
 
 
-class Database(Input):
+class Database(Inputor):
     """
     从数据库中取数据的类
     用于复现模块
@@ -23,7 +23,7 @@ class Database(Input):
         pass
 
 
-class Socket(Input):
+class Socket(Inputor):
     """
     用于监听端口的输入类
     """
