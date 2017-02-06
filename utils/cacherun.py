@@ -107,6 +107,7 @@ class Cache(mp.Process):
     def produce(self, sdate):
         edate = sdate + datetime.timedelta(days=1)
         # 确定数据总数
+
         self.mdb.cursor.execute('''select count(*)
                                    from {table}
                                    WHERE querytime >= '{sdate}'

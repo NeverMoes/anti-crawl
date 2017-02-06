@@ -19,14 +19,15 @@ class Database(Outputor):
 
     def __init__(self, connpool):
         self.connpool = connpool
+        self.rawpak = None
 
         conn = self.connpool.connect()
         cursor = conn.cursor()
         cursor.execute(
-            'CREATE TABLE cachedata.catchedinfo (\n'
+            'CREATE TABLE IF NOT EXISTS cachedata.catchedinfo (\n'
             '`ip` varchar(30) NOT NULL,\n'
             '`querytime` datetime NOT NULL,\n'
-            '`type` varchar(30) DEFAULT NULL,\n'
+            '`type` varchar(30) DEFAULT NULL\n'
             ') ENGINE=MyISAM DEFAULT CHARSET=utf8\n'
         )
         conn.close()

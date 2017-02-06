@@ -18,7 +18,7 @@ class Cache(processing.Process):
     进程封装，处理输入和输出的类
     """
 
-    def __init__(self, server=False, local=False, sock=False):
+    def __init__(self, server=False, local=False, sock=False, **kwargs):
         super().__init__()
 
         self.queue = LifoQueue()
@@ -26,6 +26,7 @@ class Cache(processing.Process):
         self.inputor = None
         self.outputors = list()
         self.watcher = None
+        self.kwargs = kwargs
 
         self.connpool = pool.QueuePool(
             lambda: pymysql.connect(**cacheconf.DBCONF),
@@ -41,19 +42,29 @@ class Cache(processing.Process):
 
         if server:
             self.outputors.extend([outputor.Database(self.connpool)])
-            self.inputor = inputor.Socket()
+            self.inputor = inputor.Database(self.kwargs['sdate'], self.kwargs['edate'])
+
+            self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            if os.path.exists(cacheconf.SOCK_PATH):
+                os.unlink(cacheconf.SOCK_PATH)
+            self.sock.bind(cacheconf.SOCK_PATH)
+            self.sock.listen(0)
+
             self.watcher = Watcher()
+
         elif local:
             self.outputors.extend([outputor.Database(self.connpool), outputor.Logger()])
-            self.inputor = inputor.Database()
+            self.inputor = inputor.Database(self.kwargs['sdate'], self.kwargs['edate'])
+
         elif sock:
             self.outputors.extend([outputor.Database(self.connpool), outputor.Logger(), outputor.FileLogger()])
-            self.inputor = inputor.Database()
+            self.inputor = inputor.Socket()
+
         else:
             raise Exception('wrong params')
 
     def run(self):
-        if not self.watcher:
+        if self.watcher:
             self.watcher.start()
 
         with concurrent.futures.ProcessPoolExecutor(max_workers=5) as executor:
@@ -61,7 +72,9 @@ class Cache(processing.Process):
             进程池
             使用mapreduce方法对数据进行处理
             """
-            for rawpak, result in zip(self.get_input(), executor.map(self.predict)):
+            rawpak_generator = self.input()
+            for rawpak, result in zip(rawpak_generator, executor.map(self.predict, rawpak_generator)):
+                print(rawpak)
                 if result:
                     self.output(rawpak)
                 else:
@@ -75,9 +88,6 @@ class Cache(processing.Process):
             return True
         else:
             return False
-
-    def get_input(self):
-        pass
 
     def output(self, rawpak):
         catchedpak = Catchedpak(
@@ -104,11 +114,6 @@ class Watcher(threading.Process):
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
     def run(self):
-        if os.path.exists(cacheconf.SOCK_PATH):
-            os.unlink(cacheconf.SOCK_PATH)
-        self.sock.bind(cacheconf.SOCK_PATH)
-        self.sock.listen(0)
-
         while True:
             connection, address = self.sock.accept()
             data = connection.recv(1024)
@@ -130,7 +135,6 @@ else:
 finally:
     client.close()
 """
-
 
 
 class Backupdb(object):

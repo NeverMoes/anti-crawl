@@ -121,18 +121,10 @@ class Svmpredictor(object):
     def init_model(self):
         # utils/目录下
         BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        svmpath = os.path.join(BASE_DIR, 'svmmodel', 'svmmodel.pkl')
+        svmpath = os.path.join(BASE_DIR, 'svmmodels', 'svmmodel', 'svmmodel.pkl')
 
         self.svm_model = joblib.load(svmpath)
 
-        svmpath = os.path.join(BASE_DIR, 'model20', 'svmmodel.pkl')
-        self.svm_model20 = joblib.load(svmpath)
-
-        svmpath = os.path.join(BASE_DIR, 'model50', 'svmmodel.pkl')
-        self.svm_model50 = joblib.load(svmpath)
-
-        svmpath = os.path.join(BASE_DIR, 'model100', 'svmmodel.pkl')
-        self.svm_model100 = joblib.load(svmpath)
         return
 
     def fetch_svmpak(self, rdpak):

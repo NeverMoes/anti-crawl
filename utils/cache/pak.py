@@ -10,8 +10,8 @@ import os
 Rawpak = namedtuple('Rawpak', ['ip', 'querytime', 'command', 'depature', 'arrival', 'result'])
 """
 原始的数据包
-id         查询的id号
 ip         ip地址
+command    类型
 depature   出发地
 arrival    到达地
 querytime  查询时间
@@ -64,8 +64,8 @@ file   是否将log输出到文件中
 
 
 
-# /utils
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# /cache
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 cacheconf = _const()
@@ -76,8 +76,9 @@ cacheconf.DBCONF = {'host': '127.0.0.1', 'port': 3306,
 cacheconf.TIMEOUT = 7200
 cacheconf.SVMPROBABILITY = 0.9
 
-cacheconf.BACKUPTABLE = 'cachedata.backup'
-cacheconf.CATCHEDTABLE = 'cachedata.catchedinfo'
+cacheconf.BACKUP_TABLE = 'cachedata.backup'
+cacheconf.CATCHED_TABLE = 'cachedata.catchedinfo'
+cacheconf.INPUT_TABLE = 'zhxdata.totalcmd_dzairb2c_szx411'
 
 
 cacheconf.FILELOG_PATH = 'catchedlog.log'

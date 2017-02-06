@@ -2,11 +2,6 @@ import pymysql as mdb
 import datetime
 
 
-def pe(sql):
-    print(sql)
-    return sql
-
-
 class Mysqldb(object):
     def __init__(self):
         try:
@@ -21,7 +16,6 @@ db = Mysqldb()
 
 
 # 创建表
-
 # db.cursor.execute('''
 # CREATE TABLE IF NOT EXISTS `cmd_cache` (
 #   `ip` varchar(50) NOT NULL,
