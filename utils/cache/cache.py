@@ -8,7 +8,7 @@ import socket
 import signal
 
 from .core import Core
-from .pak import *
+from .pkg import *
 from . import outputor
 from . import inputor
 

@@ -6,7 +6,6 @@ import os
 数据包和配置的定义
 """
 
-
 Rawpak = namedtuple('Rawpak', ['ip', 'querytime', 'command', 'depature', 'arrival', 'result'])
 """
 原始的数据包
@@ -17,7 +16,6 @@ arrival    到达地
 querytime  查询时间
 result     查询结果
 """
-
 
 Rdpak = namedtuple('Rdpak', ['ip', 'query', 'order', 'stime', 'ltime'])
 """
@@ -30,7 +28,6 @@ stime  开始查询时间
 ltime  最后一次查询时间
 """
 
-
 Catchedpak = namedtuple('CatchedPak', ['ip', 'time', 'type'])
 """
 被捕捉到的查询的数据包
@@ -38,7 +35,6 @@ ip    ip地址
 time  查询的时间
 type  被捕捉的类型
 """
-
 
 Svmpak = namedtuple('Svmpak', ['duration', 'querycount', 'depcount', 'arrcount', 'errpro', 'std', 'mean'])
 """
@@ -53,7 +49,6 @@ mean         平均值
 
 """
 
-
 Coreconf = namedtuple('CoreConf', ['log', 'db', 'file'])
 """
 core算法的配置
@@ -62,27 +57,22 @@ db     是否将捕获记录记录到数据库
 file   是否将log输出到文件中
 """
 
-
-
 # /cache
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 cacheconf = _const()
 
 cacheconf.DBCONF = {'host': '127.0.0.1', 'port': 3306,
-                'user': 'root', 'passwd': 'yi', 'charset': 'utf8'}
+                    'user': 'root', 'passwd': 'yi', 'charset': 'utf8'}
 
 cacheconf.TIMEOUT = 7200
 cacheconf.SVMPROBABILITY = 0.9
+
+cacheconf.SVM_PATH = os.path.join(BASE_DIR, 'svmmodels', 'SVMmodel', 'svmmodel.pkl')
 
 cacheconf.BACKUP_TABLE = 'cachedata.backup'
 cacheconf.CATCHED_TABLE = 'cachedata.catchedinfo'
 cacheconf.INPUT_TABLE = 'zhxdata.totalcmd_dzairb2c_szx411'
 
-
 cacheconf.FILELOG_PATH = 'catchedlog.log'
 cacheconf.SOCK_PATH = os.path.join(BASE_DIR, 'cache.sock')
-
-
-

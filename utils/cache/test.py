@@ -6,8 +6,6 @@
 # cache.join()
 
 
-
-
 import multiprocessing as mt
 
 class Test(object):

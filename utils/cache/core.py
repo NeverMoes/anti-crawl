@@ -3,7 +3,7 @@ import datetime
 import pymysql
 from sklearn.externals import joblib
 import numpy as np
-from .pak import *
+from .pkg import *
 
 
 class Core(object):
@@ -120,11 +120,8 @@ class Svmpredictor(object):
 
     def init_model(self):
         # utils/目录下
-        BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        svmpath = os.path.join(BASE_DIR, 'svmmodels', 'svmmodel', 'svmmodel.pkl')
-
+        svmpath = cacheconf.SVM_PATH
         self.svm_model = joblib.load(svmpath)
-
         return
 
     def fetch_svmpak(self, rdpak):

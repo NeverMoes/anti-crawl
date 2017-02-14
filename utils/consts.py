@@ -35,4 +35,8 @@ const.DBCONF = {'host': '127.0.0.1', 'port': 3306,
 
 const.DBPROC = 'procdata'
 
+import os
+# /cache
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+const.SVM_PATH = os.path.join(BASE_DIR, 'svmmodels', 'SVMmodel', 'svmmodel.pkl')
 

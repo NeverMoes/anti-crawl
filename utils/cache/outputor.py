@@ -1,6 +1,6 @@
 import logging
 import sys
-from .pak import *
+from .pkg import *
 
 
 class Outputor(object):

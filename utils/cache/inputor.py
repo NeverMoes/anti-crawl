@@ -1,6 +1,6 @@
 import socket
 import pymysql
-from .pak import *
+from .pkg import *
 
 
 class Inputor(object):
