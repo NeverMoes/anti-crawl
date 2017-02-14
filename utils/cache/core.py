@@ -11,12 +11,11 @@ class Core(object):
     算法具体实现
     """
 
-    def __init__(self, connpool):
-        super().__init__()
+    def __init__(self):
         self.init_redis()
         self.kname_whitelist = 'whiteset'
         self.kname_blacklist = 'blackset'
-        self.svmpre = Svmpredictor(connpool)
+        self.svmpre = Svmpredictor()
         return
 
     def init_redis(self):

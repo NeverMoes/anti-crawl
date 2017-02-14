@@ -28,20 +28,20 @@ class Cache(processing.Process):
         self.watcher = None
         self.kwargs = kwargs
 
-        self.connpool = pool.QueuePool(
-            lambda: pymysql.connect(**cacheconf.DBCONF),
-            pool_size=10,
-            max_overflow=10
-        )
+        #  = pool.QueuePool(
+        #     lambda: pymysql.connect(**cacheconf.DBCONF),
+        #     pool_size=10,
+        #     max_overflow=10
+        # )
 
-        self.backupdb = Backupdb(self.connpool)
-        self.core = Core(self.connpool)
+        self.backupdb = Backupdb()
+        self.core = Core()
 
         if server and local and sock:
             raise Exception('wrong params')
 
         if server:
-            self.outputors.extend([outputor.Database(self.connpool)])
+            self.outputors.extend([outputor.Database()])
             self.inputor = inputor.Database(self.kwargs['sdate'], self.kwargs['edate'])
 
             self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -53,11 +53,11 @@ class Cache(processing.Process):
             self.watcher = Watcher()
 
         elif local:
-            self.outputors.extend([outputor.Database(self.connpool), outputor.Logger()])
+            self.outputors.extend([outputor.Database(), outputor.Logger()])
             self.inputor = inputor.Database(self.kwargs['sdate'], self.kwargs['edate'])
 
         elif sock:
-            self.outputors.extend([outputor.Database(self.connpool), outputor.Logger(), outputor.FileLogger()])
+            self.outputors.extend([outputor.Database(), outputor.Logger(), outputor.FileLogger()])
             self.inputor = inputor.Socket()
 
         else:
@@ -67,18 +67,25 @@ class Cache(processing.Process):
         if self.watcher:
             self.watcher.start()
 
-        with concurrent.futures.ProcessPoolExecutor(max_workers=5) as executor:
-            """
-            进程池
-            使用mapreduce方法对数据进行处理
-            """
-            rawpkg_generator = self.input()
-            for rawpkg, result in zip(rawpkg_generator, executor.map(self.predict, rawpkg_generator)):
-                print(rawpkg)
-                if result:
-                    self.output(rawpkg)
-                else:
-                    pass
+        # with concurrent.futures.ProcessPoolExecutor(max_workers=5) as executor:
+        #     """
+        #     进程池
+        #     使用mapreduce方法对数据进行处理
+        #     """
+        #     rawpkg_generator = self.input()
+        #     for rawpkg, result in zip(rawpkg_generator, executor.map(self.predict, rawpkg_generator)):
+        #         print(rawpkg)
+        #         if result:
+        #             self.output(rawpkg)
+        #         else:
+        #             pass
+        # return
+
+        for rawpkg in self.input():
+            if self.predict(rawpkg):
+                self.output(rawpkg)
+            else:
+                pass
         return
 
     def predict(self, rawpkg):
@@ -142,11 +149,10 @@ class Backupdb(object):
     对所有进入cache的数据进行备份供svm进行使用
     """
 
-    def __init__(self, connpool):
-        self.connpool = connpool
-
-        conn = self.connpool.connect()
-        cursor = conn.cursor()
+    def __init__(self):
+        self.connection = pymysql.connect(**cacheconf.DBCONF)
+        self.cursor = self.connection.cursor()
+        cursor = self.cursor
         cursor.execute(
             'create table if not exists cachedata.backup(\n'
             '`ip` varchar(30) DEFAULT NULL,\n'
@@ -159,7 +165,7 @@ class Backupdb(object):
             'KEY `ip` (`ip`)\n'
             ') ENGINE=MyISAM DEFAULT CHARSET=gbk\n'
         )
-        conn.close()
+
 
         return
 
@@ -176,8 +182,7 @@ class Backupdb(object):
             arrival=rawpkg.arrival,
             result=rawpkg.result
         )
-        conn = self.connpool.connect()
-        cursor = conn.cursor()
+        cursor = self.cursor
         cursor.execute(basesql)
-        conn.close()
+
         return

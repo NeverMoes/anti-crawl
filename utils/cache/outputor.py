@@ -1,5 +1,6 @@
 import logging
 import sys
+import pymysql
 from .pkg import *
 
 
@@ -17,12 +18,10 @@ class Database(Outputor):
     数据库的实例
     """
 
-    def __init__(self, connpool):
-        self.connpool = connpool
-        self.rawpkg = None
-
-        conn = self.connpool.connect()
-        cursor = conn.cursor()
+    def __init__(self):
+        self.connection = pymysql.connect(**cacheconf.DBCONF)
+        self.cursor = self.connection.cursor()
+        cursor = self.cursor
         cursor.execute(
             'CREATE TABLE IF NOT EXISTS cachedata.catchedinfo (\n'
             '`ip` varchar(30) NOT NULL,\n'
@@ -30,11 +29,9 @@ class Database(Outputor):
             '`type` varchar(30) DEFAULT NULL\n'
             ') ENGINE=MyISAM DEFAULT CHARSET=utf8\n'
         )
-        conn.close()
 
     def output(self, catchedpkg):
-        conn = self.connpool.connect()
-        cursor = conn.cursor()
+        cursor = self.cursor
         cursor.execute(
             ('insert into {table}\n'
              '(`ip`, `time`, `type`)\n'
@@ -46,7 +43,6 @@ class Database(Outputor):
                 type='cache'
             )
         )
-        conn.close()
 
 
 class Logger(Outputor):

@@ -1,12 +1,8 @@
-# from utils.cache.cache import Cache
-#
-#
-# cache = Cache(local=True, sdate='2016-08-23', edate='2016-08-24')
-# cache.start()
-# cache.join()
+from utils.cache.cache import Cache
 
 
-import multiprocessing as mt
+cache = Cache(local=True, sdate='2016-08-23', edate='2016-08-24')
+cache.start()
+cache.join()
 
-class Test(object):
-    pass
+
