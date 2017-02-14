@@ -27,96 +27,96 @@ class Core(object):
         self.rd.flushall()
         return
 
-    def predict(self, rawpak):
+    def predict(self, rawpkg):
 
-        if self.query_whitelist(rawpak):
+        if self.query_whitelist(rawpkg):
             return False
 
-        if self.query_blacklist(rawpak):
+        if self.query_blacklist(rawpkg):
             return True
 
-        if self.query_exist(rawpak):
-            if self.query_timeout(rawpak):
-                self.drop(rawpak)
-                self.init_rdpak(rawpak)
+        if self.query_exist(rawpkg):
+            if self.query_timeout(rawpkg):
+                self.drop(rawpkg)
+                self.init_rdpkg(rawpkg)
                 return False
             else:
-                if self.time_switch(rawpak):
+                if self.time_switch(rawpkg):
                     return True
                 else:
-                    self.update(rawpak)
+                    self.update(rawpkg)
                     return False
         else:
-            self.init_rdpak(rawpak)
+            self.init_rdpkg(rawpkg)
             return False
 
-    def time_switch(self, rawpak):
+    def time_switch(self, rawpkg):
         """
         根据查询的次数进行分流
         """
-        querytime = self.fetch_rdpak(rawpak).query
+        querytime = self.fetch_rdpkg(rawpkg).query
 
         if querytime < 30:
             return False
         elif querytime == 50:
-            if self.svmpre.predict(self.fetch_rdpak(rawpak)):
+            if self.svmpre.predict(self.fetch_rdpkg(rawpkg)):
                 return True
             else:
                 return False
         elif querytime > 200:
             return True
 
-    def update(self, rawpak):
-        if rawpak.command == 'FlightShopping':
-            self.rd.hincrby(rawpak.ip, 'query')
+    def update(self, rawpkg):
+        if rawpkg.command == 'FlightShopping':
+            self.rd.hincrby(rawpkg.ip, 'query')
         else:
-            self.rd.hincrby(rawpak.ip, 'order')
-        self.rd.hset(rawpak.ip, 'ltime', rawpak.querytime.timestamp())
+            self.rd.hincrby(rawpkg.ip, 'order')
+        self.rd.hset(rawpkg.ip, 'ltime', rawpkg.querytime.timestamp())
         return
 
-    def drop(self, rawpak):
-        self.rd.delete(rawpak.ip)
+    def drop(self, rawpkg):
+        self.rd.delete(rawpkg.ip)
         return
 
-    def query_whitelist(self, rawpak):
-        if self.rd.sismember(self.kname_whitelist, rawpak.ip):
+    def query_whitelist(self, rawpkg):
+        if self.rd.sismember(self.kname_whitelist, rawpkg.ip):
             return True
         else:
             return False
 
-    def query_blacklist(self, rawpak):
-        if self.rd.sismember(self.kname_blacklist, rawpak.ip):
+    def query_blacklist(self, rawpkg):
+        if self.rd.sismember(self.kname_blacklist, rawpkg.ip):
             return True
         else:
             return False
 
-    def query_exist(self, rawpak):
-        if self.rd.exists(rawpak):
+    def query_exist(self, rawpkg):
+        if self.rd.exists(rawpkg):
             return True
         else:
             return False
 
-    def query_timeout(self, rawpak):
-        if rawpak.querytime.timestamp() - self.fetch_rdpak(rawpak).stime > cacheconf.TIMEOUT:
+    def query_timeout(self, rawpkg):
+        if rawpkg.querytime.timestamp() - self.fetch_rdpkg(rawpkg).stime > cacheconf.TIMEOUT:
             return True
         else:
             return False
 
-    def fetch_rdpak(self, rawpak):
-        dic = {key.decode('utf-8'): value.decode('utf-8') for key, value in self.rd.hgetall(rawpak.ip).items()}
-        return Rdpak(ip=rawpak.ip, query=int(dic['query']), order=int(dic['order']),
+    def fetch_rdpkg(self, rawpkg):
+        dic = {key.decode('utf-8'): value.decode('utf-8') for key, value in self.rd.hgetall(rawpkg.ip).items()}
+        return Rdpkg(ip=rawpkg.ip, query=int(dic['query']), order=int(dic['order']),
                      stime=float(dic['stime']), ltime=float(dic['ltime']))
 
-    def init_rdpak(self, rawpak):
-        self.rd.hmset(rawpak.ip, {'query': 1, 'stime': rawpak.querytime.timestamp(),
-                                  'ltime': rawpak.querytime.timestamp(), 'order': 0})
+    def init_rdpkg(self, rawpkg):
+        self.rd.hmset(rawpkg.ip, {'query': 1, 'stime': rawpkg.querytime.timestamp(),
+                                  'ltime': rawpkg.querytime.timestamp(), 'order': 0})
         return
 
 
 class Svmpredictor(object):
-    def __init__(self, connpool):
-        self.connpool = connpool
-        self.init_model()
+    def __init__(self):
+        self.connection = pymysql.connect(**cacheconf.DBCONF)
+        self.cursor = self.connection.cursor()
 
     def init_model(self):
         # utils/目录下
@@ -124,9 +124,8 @@ class Svmpredictor(object):
         self.svm_model = joblib.load(svmpath)
         return
 
-    def fetch_svmpak(self, rdpak):
-        conn = self.connpool.connect()
-        cursor = conn.cursor()
+    def fetch_svmpkg(self, rdpkg):
+        cursor = self.cursor
         cursor.execute(
             ('SELECT ip, depature, arrival, querytime, result\n'
              'FROM {table}\n'
@@ -137,13 +136,12 @@ class Svmpredictor(object):
              'ORDER BY querytime\n'
              ).format(
                 table=cacheconf.BACKUPTABLE,
-                ip=rdpak.ip,
-                stime=datetime.datetime.fromtimestamp(rdpak.stime),
-                etime=datetime.datetime.fromtimestamp(rdpak.ltime)
+                ip=rdpkg.ip,
+                stime=datetime.datetime.fromtimestamp(rdpkg.stime),
+                etime=datetime.datetime.fromtimestamp(rdpkg.ltime)
             )
         )
-        dataraws = [Rawpak(*row) for row in cursor.fetchall()]
-        conn.close()
+        dataraws = [Rawpkg(*row) for row in cursor.fetchall()]
 
         querytime = list()
         depature = list()
@@ -160,8 +158,8 @@ class Svmpredictor(object):
         for i in range(len(dataraws) - 1):
             interval.append(querytime[i + 1].timestamp() - querytime[i].timestamp())
 
-        return Svmpak(
-            duration=rdpak.ltime - rdpak.stime,
+        return Svmpkg(
+            duration=rdpkg.ltime - rdpkg.stime,
             querycount=len(dataraws),
             depcount=len(set(depature)),
             arrcount=len(set(arrival)),
@@ -170,9 +168,9 @@ class Svmpredictor(object):
             mean=np.array(interval).mean()
         )
 
-    def predict(self, rdpak):
-        svmpak = self.fetch_svmpak(rdpak)
-        resultpro = self.svm_model.predict_proba([svmpak])[0][1]
+    def predict(self, rdpkg):
+        svmpkg = self.fetch_svmpkg(rdpkg)
+        resultpro = self.svm_model.predict_proba([svmpkg])[0][1]
 
         if resultpro > cacheconf.SVMPROBABILITY:
             return True

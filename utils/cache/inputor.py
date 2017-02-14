@@ -72,7 +72,7 @@ class Database(Inputor):
 
                 rows = cursor.fetchall()
                 for row in rows:
-                    rawpak = Rawpak(
+                    rawpkg = Rawpkg(
                         ip=row[0],
                         querytime=row[1],
                         command=row[2],
@@ -80,8 +80,8 @@ class Database(Inputor):
                         arrival='x',
                         result='ok.'
                     )
-                    yield rawpak
-                    yield rawpak
+                    yield rawpkg
+                    yield rawpkg
 
 
 class Socket(Inputor):

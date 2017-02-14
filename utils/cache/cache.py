@@ -72,30 +72,30 @@ class Cache(processing.Process):
             进程池
             使用mapreduce方法对数据进行处理
             """
-            rawpak_generator = self.input()
-            for rawpak, result in zip(rawpak_generator, executor.map(self.predict, rawpak_generator)):
-                print(rawpak)
+            rawpkg_generator = self.input()
+            for rawpkg, result in zip(rawpkg_generator, executor.map(self.predict, rawpkg_generator)):
+                print(rawpkg)
                 if result:
-                    self.output(rawpak)
+                    self.output(rawpkg)
                 else:
                     pass
         return
 
-    def predict(self, rawpak):
-        self.backupdb.backup(rawpak)
+    def predict(self, rawpkg):
+        self.backupdb.backup(rawpkg)
 
-        if self.core.predict(rawpak):
+        if self.core.predict(rawpkg):
             return True
         else:
             return False
 
-    def output(self, rawpak):
-        catchedpak = Catchedpak(
-            ip=rawpak.ip,
-            time=rawpak.querytime,
+    def output(self, rawpkg):
+        catchedpkg = Catchedpkg(
+            ip=rawpkg.ip,
+            time=rawpkg.querytime,
             type='cache'
         )
-        [outputor.output(catchedpak) for outputor in self.outputors]
+        [outputor.output(catchedpkg) for outputor in self.outputors]
         return
 
     def input(self):
@@ -163,18 +163,18 @@ class Backupdb(object):
 
         return
 
-    def backup(self, rawpak):
+    def backup(self, rawpkg):
         basesql = (
             'insert into cachedata.backup\n'
             '(`ip`, `querytime`, `command`, `depature`, `arrival`, `result`)\n'
             'VALUES (\'{ip}\', \'{querytime}\', \'{command}\', \'{depature}\', \'{arrival}\', \'{result}\')\n'
         ).format(
-            ip=rawpak.ip,
-            querytime=rawpak.querytime,
-            command=rawpak.command,
-            depature=rawpak.depature,
-            arrival=rawpak.arrival,
-            result=rawpak.result
+            ip=rawpkg.ip,
+            querytime=rawpkg.querytime,
+            command=rawpkg.command,
+            depature=rawpkg.depature,
+            arrival=rawpkg.arrival,
+            result=rawpkg.result
         )
         conn = self.connpool.connect()
         cursor = conn.cursor()

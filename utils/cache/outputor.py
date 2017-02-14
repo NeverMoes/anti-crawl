@@ -8,7 +8,7 @@ class Outputor(object):
     输出的抽象类
     """
 
-    def output(self, catchedpak):
+    def output(self, catchedpkg):
         raise NotImplementedError
 
 
@@ -19,7 +19,7 @@ class Database(Outputor):
 
     def __init__(self, connpool):
         self.connpool = connpool
-        self.rawpak = None
+        self.rawpkg = None
 
         conn = self.connpool.connect()
         cursor = conn.cursor()
@@ -32,7 +32,7 @@ class Database(Outputor):
         )
         conn.close()
 
-    def output(self, catchedpak):
+    def output(self, catchedpkg):
         conn = self.connpool.connect()
         cursor = conn.cursor()
         cursor.execute(
@@ -41,8 +41,8 @@ class Database(Outputor):
              'VALUES (\'{ip}\', \'{time}\', \'{type}\')'
              ).format(
                 table=cacheconf.CATCHEDTABLE,
-                ip=catchedpak.ip,
-                time=catchedpak.time,
+                ip=catchedpkg.ip,
+                time=catchedpkg.time,
                 type='cache'
             )
         )
@@ -59,8 +59,8 @@ class Logger(Outputor):
         self.logger.addHandler(logging.StreamHandler(sys.stdout))
         self.logger.setLevel(logging.INFO)
 
-    def output(self, catchedpak):
-        self.logger.info('ip: ' + str(catchedpak.ip) + ', time: ' + str(catchedpak.time))
+    def output(self, catchedpkg):
+        self.logger.info('ip: ' + str(catchedpkg.ip) + ', time: ' + str(catchedpkg.time))
 
 
 class FileLogger(Outputor):
@@ -73,5 +73,5 @@ class FileLogger(Outputor):
         self.logger.addHandler(logging.FileHandler(cacheconf.FILELOG_PATH))
         self.logger.setLevel(logging.INFO)
 
-    def output(self, catchedpak):
-        self.logger.info('ip: ' + str(catchedpak.ip) + ', time: ' + str(catchedpak.time))
+    def output(self, catchedpkg):
+        self.logger.info('ip: ' + str(catchedpkg.ip) + ', time: ' + str(catchedpkg.time))

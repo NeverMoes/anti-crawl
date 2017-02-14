@@ -6,7 +6,7 @@ import os
 数据包和配置的定义
 """
 
-Rawpak = namedtuple('Rawpak', ['ip', 'querytime', 'command', 'depature', 'arrival', 'result'])
+Rawpkg = namedtuple('Rawpkg', ['ip', 'querytime', 'command', 'depature', 'arrival', 'result'])
 """
 原始的数据包
 ip         ip地址
@@ -17,7 +17,7 @@ querytime  查询时间
 result     查询结果
 """
 
-Rdpak = namedtuple('Rdpak', ['ip', 'query', 'order', 'stime', 'ltime'])
+Rdpkg = namedtuple('Rdpkg', ['ip', 'query', 'order', 'stime', 'ltime'])
 """
 进入redis的数据包
 !!! 注意这个数据包内的时间为时间戳
@@ -28,7 +28,7 @@ stime  开始查询时间
 ltime  最后一次查询时间
 """
 
-Catchedpak = namedtuple('CatchedPak', ['ip', 'time', 'type'])
+Catchedpkg = namedtuple('Catchedpkg', ['ip', 'time', 'type'])
 """
 被捕捉到的查询的数据包
 ip    ip地址
@@ -36,7 +36,7 @@ time  查询的时间
 type  被捕捉的类型
 """
 
-Svmpak = namedtuple('Svmpak', ['duration', 'querycount', 'depcount', 'arrcount', 'errpro', 'std', 'mean'])
+Svmpkg = namedtuple('Svmpkg', ['duration', 'querycount', 'depcount', 'arrcount', 'errpro', 'std', 'mean'])
 """
 svm所需要的数据
 duration     持续时间
