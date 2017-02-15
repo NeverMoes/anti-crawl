@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Feb 14 14:04:12 2017
-
-@author: mao133132
-"""
-
 import pymysql
 import datetime
 import numpy as np
@@ -12,6 +5,15 @@ from sklearn.externals import joblib
 import time
 from sklearn import svm
 from utils.consts import const
+
+import os
+import sys
+
+print(os.path.dirname(os.path.abspath('..')))
+
+sys.path.insert(0, os.path.dirname(os.path.abspath('..')))
+
+
 
 '''
 CREATE TABLE IF NOT EXISTS `sessiondiv` (

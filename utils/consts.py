@@ -44,7 +44,11 @@ const.TABLE2_ROUTE = '`semgent`'
 
 # 路径参数
 import os
-# /cache
+
+# anti_crawl
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# utils
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-const.SVM_PATH = os.path.join(BASE_DIR, 'svmmodels', 'SVMmodel', 'svmmodel.pkl')
+const.SVM_PATH = os.path.join(BASE_DIR, 'svmmodels', 'svmmodelv3', 'svmmodel.pkl')
 
