@@ -1,7 +1,7 @@
 import pymysql
 import datetime
 import numpy as np
-from .consts import const
+from utils.consts import const
 from sklearn.externals import joblib
 
 
@@ -44,7 +44,7 @@ class MakeTable(object):
                 ipdict[result[i][0]] += 1
             else:
                 ipdict[result[i][0]] = 1
-        sql = 'INSERT INTO procdata.ft_day (date, ip, querycount) VALUES (%s, %s, %s)'
+        sql = 'INSERT INTO procdata.ft_day (querytime, ip, querycount) VALUES (%s, %s, %s)'
         for i in ipdict.keys():
             self.cursor.execute(sql, (a, i, ipdict[i]))
         '''
@@ -436,11 +436,6 @@ class MakeTable(object):
             date += delta
             date2 += delta
         return
-
-
-if __name__ == "__main__":
-    db = MakeTable()
-    db.maindeal('2016-09-05')
 
 
 
