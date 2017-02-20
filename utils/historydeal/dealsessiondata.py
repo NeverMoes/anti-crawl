@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Feb 14 14:04:12 2017
+
+@author: mao133132
+"""
+
 import pymysql
 import datetime
 import numpy as np
@@ -5,15 +12,6 @@ from sklearn.externals import joblib
 import time
 from sklearn import svm
 from utils.consts import const
-
-import os
-import sys
-
-print(os.path.dirname(os.path.abspath('..')))
-
-sys.path.insert(0, os.path.dirname(os.path.abspath('..')))
-
-
 
 '''
 CREATE TABLE IF NOT EXISTS `sessiondiv` (
@@ -42,7 +40,7 @@ class MakeSession(object):
     def __init__(self):
         self.connect = pymysql.connect(**const.DBCONF)
         self.cursor = self.connect.cursor()
-        self.svmpath = const.SVM_PATH
+        self.svmpath = 'D:\pyprogram\SVMmodel\svmmodelv3\svmmodel.pkl'
         self.svmmodel = joblib.load(self.svmpath)
 
     def main(self, d1, d2):
@@ -70,6 +68,8 @@ class MakeSession(object):
                        date2=date2.strftime(timeformat)))
             result = self.cursor.fetchall()
             for i in range(len(result)):
+                if result[i][0] == None:
+                    continue
                 if result[i][0] in cache:
                     temp1 = result[i][1]
                     temp2 = cache[result[i][0]]['time'][-1]
@@ -106,6 +106,8 @@ class MakeSession(object):
             result = self.cursor.fetchall()
 
             for j in range(len(result)):
+                if result[j][0] == None:
+                    continue
                 if result[j][0] in cache:
                     cache[result[j][0]]['buy'] = 1
                     self.clear_cache(result[j][0], cache[result[j][0]])
@@ -180,9 +182,8 @@ class MakeSession(object):
         w_normalcity = 0.5 * w_normalcity / data['count']
         sql = 'INSERT INTO procdata.sessiondiv ( ip, starttime, endtime, duration, query, buy, depature, arrival, variance, mean, error,hotcity,normalcity) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
         self.cursor.execute(sql, (
-            w_ip, w_starttime, w_endtime, w_duration, w_query, w_buy, w_depature, w_arrival, w_variance, w_mean,
-            w_error,
-            w_hotcity, w_normalcity))
+        w_ip, w_starttime, w_endtime, w_duration, w_query, w_buy, w_depature, w_arrival, w_variance, w_mean, w_error,
+        w_hotcity, w_normalcity))
         return 1
 
     def svmjudge(self, d1, d2):
@@ -238,7 +239,3 @@ class MakeSession(object):
             date2 = date1 + delta
         return 1
 
-
-if __name__ == "__main__":
-    db = MakeSession()
-    db.main('2016-08-23 00:00:00', '2016-11-23 00:00:00')

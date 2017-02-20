@@ -68,7 +68,7 @@ cacheconf.DBCONF = {'host': '127.0.0.1', 'port': 3306,
 cacheconf.TIMEOUT = 7200
 cacheconf.SVMPROBABILITY = 0.9
 
-cacheconf.SVM_PATH = os.path.join(BASE_DIR, 'svmmodels', 'SVMmodel', 'svmmodel.pkl')
+cacheconf.SVM_PATH = os.path.join(BASE_DIR, 'svmmodels', 'svmmodelv3', 'svmmodel.pkl')
 
 cacheconf.BACKUP_TABLE = 'cachedata.backup'
 cacheconf.CATCHED_TABLE = 'cachedata.catchedinfo'
