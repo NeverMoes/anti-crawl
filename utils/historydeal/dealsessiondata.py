@@ -5,6 +5,12 @@ Created on Tue Feb 14 14:04:12 2017
 @author: mao133132
 """
 
+
+import os
+import sys
+sys.path.insert(0, os.path.abspath('..'))
+
+
 import pymysql
 import datetime
 import numpy as np
@@ -29,9 +35,12 @@ CREATE TABLE IF NOT EXISTS `sessiondiv` (
   `hotcity` float DEFAULT 0,
   `normalcity` float DEFAULT 0,
   `class` int NULL,
-  `svmclass` int NULL,
+  `svmclass` float NULL,
   PRIMARY KEY  (`ip`,`starttime`)
+  KEY (`endtime`)
 ) ENGINE=MyISAM DEFAULT CHARSET=gbk;
+
+alter table sessiondiv change svmclass svmclass float null;
 
 '''
 
@@ -40,7 +49,7 @@ class MakeSession(object):
     def __init__(self):
         self.connect = pymysql.connect(**const.DBCONF)
         self.cursor = self.connect.cursor()
-        self.svmpath = 'D:\pyprogram\SVMmodel\svmmodelv3\svmmodel.pkl'
+        self.svmpath = const.SVM_PATH
         self.svmmodel = joblib.load(self.svmpath)
 
     def main(self, d1, d2):
@@ -198,12 +207,11 @@ class MakeSession(object):
             sql = 'SELECT ip,starttime,duration,query,depature,arrival,variance,mean,error,hotcity,normalcity FROM procdata.sessiondiv where `starttime`>= %s AND `starttime` < %s'
             self.cursor.execute(sql, (date1.strftime(timeformat), date2.strftime(timeformat)))
             tempresult = self.cursor.fetchall()
-            sql1 = 'UPDATE procdata.sessiondiv SET svmclass = 1 WHERE ip = %s AND starttime = %s'
-            sql2 = 'UPDATE procdata.sessiondiv SET svmclass = 2 WHERE ip = %s AND starttime = %s'
-            sql3 = 'UPDATE procdata.sessiondiv SET svmclass = 3 WHERE ip = %s AND starttime = %s'
+            sql1 = 'UPDATE procdata.sessiondiv SET svmclass = 0 WHERE ip = %s AND starttime = %s'
+            sql2 = 'UPDATE procdata.sessiondiv SET svmclass = %s WHERE ip = %s AND starttime = %s'
             for i in range(len(tempresult)):
                 if tempresult[i][0] in flagshoplist:
-                    self.cursor.execute(sql3, (tempresult[i][0], tempresult[i][1].strftime(timeformat)))
+                    self.cursor.execute(sql1, (tempresult[i][0], tempresult[i][1].strftime(timeformat)))
                     continue
                 if tempresult[i][3] <= 5:
                     self.cursor.execute(sql1, (tempresult[i][0], tempresult[i][1].strftime(timeformat)))
@@ -229,13 +237,15 @@ class MakeSession(object):
                 svmlist[5] = 1.0 * svmlist[5] / 1000
                 if svmlist[5] > 1:
                     svmlist[5] = 1.0
+                svmlist = np.array(svmlist).reshape(1, -1)
                 result = self.svmmodel.predict_proba(svmlist)
-                if result[0][1] >= 0.9:
-                    self.cursor.execute(sql2, (tempresult[i][0], tempresult[i][1].strftime(timeformat)))
-                else:
-                    self.cursor.execute(sql1, (tempresult[i][0], tempresult[i][1].strftime(timeformat)))
+                self.cursor.execute(sql2, (str(result[0][1]), tempresult[i][0], tempresult[i][1].strftime(timeformat)))
             print(datetime.datetime.strftime(date1, timeformat) + ' judge')
             date1 = date1 + delta
             date2 = date1 + delta
         return 1
 
+
+if __name__ == '__main__':
+    db = MakeSession()
+    db.svmjudge('2016-08-23 00:00:00', '2016-10-24 00:00:00')

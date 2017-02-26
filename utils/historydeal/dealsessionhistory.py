@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS `allsessiontable` (
 
 import pymysql
 import datetime
-from .const import const
+from utils.consts import const
 
 class MakeSessionTable(object):
     
