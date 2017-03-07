@@ -1,10 +1,7 @@
+import sys
+sys.path.append("/srv/anti_crawl")
 import datetime
 from utils.historydeal.dealhistory import MakeTable
-
-import sys
-
-sys.path.append("/srv/anti_crawl")
-
 
 def run(stime, etime):
     date1 = stime

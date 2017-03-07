@@ -43,6 +43,7 @@ class MakeTable(object):
         print(datea + 'begin!')
         print(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time())))
         self.getdata(datea)
+        '''
         self.Day_Count(datea)
         self.MakeThreeIp(datea)
         self.MakeTwoIp(datea)
@@ -50,13 +51,16 @@ class MakeTable(object):
         self.makecrawlerip(datea)
         self.MakeIpPieData(datea)
         self.route_count_daily(datea)
+        '''
         self.makeipmessage(datea)
+        '''
         self.MakePositiveSample(datea)
         self.MakeNegativeSample(datea)
         self.forfaster(datea)
         sessiontable = MakeSessionTable()  # 制作session属性分布表，用于第三，第四页面。
         sessiontable.maindeal(datea)
         sessiontable = 0
+        '''
         print('all over!')
         print(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time())))
 
@@ -122,7 +126,7 @@ class MakeTable(object):
             date2 = date1 + tenminutedelta
         return 0
 
-    def Day_Count(self, a):  # 制作ft_day表
+    def Day_Count(self, a):  # 制作ft_day表，即一天四位ip查询订票数据统计表
         ipdict = {}
         for i in range(len(self.ffdata)):
             if self.ffdata[i][0] in ipdict:
@@ -147,7 +151,7 @@ class MakeTable(object):
             self.cursor.execute(sql, (buydict[i], a, i))
         return 0
 
-    # 制作ip头三位的块表ft_three_day
+    # 制作ip头三位的块表ft_three_day，三位ip查询订票数据统计表
     def MakeThreeIp(self, a):
 
         sql = 'SELECT * FROM procdata.ft_day where date = %s'
@@ -169,7 +173,7 @@ class MakeTable(object):
             self.cursor.execute(sql, (a, i, ipdict[i]['querycount'], ipdict[i]['ordercount']))
         return 0
 
-    # 制作ip头二位的块表ft_two_day
+    # 制作ip头二位的块表ft_two_day, 二位ip查询订票数据统计表
     def MakeTwoIp(self, a):
         sql = 'SELECT * FROM procdata.ft_three_day where `date` = %s'
         self.cursor.execute(sql, (a))
@@ -190,7 +194,7 @@ class MakeTable(object):
             self.cursor.execute(sql, (a, i, ipdict[i]['querycount'], ipdict[i]['ordercount']))
         return 0
 
-    # 获取头两位ip有问题的ip头，不是建表函数，在session的正负样本自动选取中有用。
+    # 获取头两位ip有问题的ip头（查询量大而不订票），不是建表函数，在session的正负样本自动选取中有用。
     def GetTopTwoIp(self, date, num):
         sql = 'SELECT ip FROM procdata.ft_two_day where `date` = %s AND ordercount = 0 order by querycount desc limit 0,%s'
         self.cursor.execute(sql, (date, num))
@@ -201,7 +205,7 @@ class MakeTable(object):
             templist.append(result[i][0])
         return templist
 
-    # 制作ip航线的块表ip_route_count
+    # 制作ip航线的快表ip_route_count，记载一天所有以及特定ip的航线查询订票情况
     def route_count_daily(self, a):
         class1list = self.class1list
         class2list = self.class2list
@@ -291,7 +295,7 @@ class MakeTable(object):
                         routedict[temp] = {'query': 1, 'cquery': 0}
 
         sql = 'INSERT INTO procdata.ip_route_count (time, ip, route, query,crawlerquery,kinds) VALUES (%s, %s, %s, %s, %s, %s)'
-        for i in routedict.keys():
+        for i in routedict.keys():#航线分类
             tempde = i[0:3]
             tempar = i[3:6]
             if tempde in class1list:
@@ -348,8 +352,8 @@ class MakeTable(object):
             self.cursor.execute(sql, (buydict[i], a, i[6:], i[0:6]))
         return 0
 
-    # 制作第一张饼图数据
-    def MakeIpPieData(self, a):  # 绘制第一张饼图数据的据
+    # 制作第一张饼图数据与第二张饼图数据
+    def MakeIpPieData(self, a):
         alllist = []
         for i in range(5):
             templist = []
@@ -473,28 +477,41 @@ class MakeTable(object):
         alllist = []
         return 0
 
-    def makeipmessage(self, dataa):  # 处理部分ip的信息表，用于第四个页面
+    def makeipmessage(self, dataa):  # 处理部分ip的信息表，用于第四个页面，日数据于小时数据都在这了，小时只统计查询，订票
         class1list = self.class1list
         class2list = self.class2list
         temp_date = dataa + ' 00:00:00'
         timeformat = '%Y-%m-%d %H:%M:%S'
         date1 = datetime.datetime.strptime(temp_date, timeformat)
         delta = datetime.timedelta(days=1)
+        delta2 = datetime.timedelta(days=5)
         sessiondelta = datetime.timedelta(hours=1)
         dateend = date1 + delta
+        datab = date1 - delta2
+        datab = datetime.datetime.strftime(datab, timeformat)
         all_delist = []
         all_arlist = []
         all_er = 0
         all_hot = 0
         all_normal = 0
-        iplist = []  # 存放需要处理的ip
-        sql = "SELECT ip FROM procdata.ft_day WHERE date = %s ORDER BY querycount desc LIMIT 0 , 100"
+        iplist = []  # 存放需要处理的四位ip
+        sql = "SELECT ip FROM procdata.ft_day WHERE date = %s ORDER BY querycount desc LIMIT 0 , 300"
         self.cursor.execute(sql, (dataa))
         result = self.cursor.fetchall()
         for i in range(len(result)):
             iplist.append(result[i][0])
-        sql = "SELECT ip FROM procdata.ft_three_day WHERE date = %s ORDER BY querycount desc LIMIT 0 , 30"
+        sql = "SELECT distinct ip FROM procdata.ft_day WHERE date < %s AND date >= %s ORDER BY querycount desc LIMIT 0 , 200"
+        self.cursor.execute(sql, (dataa,datab))
+        result = self.cursor.fetchall()
+        for i in range(len(result)):
+            iplist.append(result[i][0])
+        sql = "SELECT ip FROM procdata.ft_three_day WHERE date = %s ORDER BY querycount desc LIMIT 0 , 100"
         self.cursor.execute(sql, (dataa))
+        result = self.cursor.fetchall()
+        for i in range(len(result)):
+            iplist.append(result[i][0])
+        sql = "SELECT ip FROM procdata.ft_three_day WHERE date < %s AND date >= %s ORDER BY querycount desc LIMIT 0 , 70"
+        self.cursor.execute(sql, (dataa,datab))
         result = self.cursor.fetchall()
         for i in range(len(result)):
             iplist.append(result[i][0])
@@ -503,6 +520,12 @@ class MakeTable(object):
         result = self.cursor.fetchall()
         for i in range(len(result)):
             iplist.append(result[i][0])
+        sql = "SELECT ip FROM procdata.ft_two_day WHERE date < %s AND date >= %s ORDER BY querycount desc LIMIT 0 , 20"
+        self.cursor.execute(sql, (dataa,datab))
+        result = self.cursor.fetchall()
+        for i in range(len(result)):
+            iplist.append(result[i][0])
+        iplist = np.unique(iplist)
         # iplist = ['114.80.10.1','61.155.159.41','103.37.138.14','103.37.138.10']
         cache = {}
         hourcache = {}
@@ -561,7 +584,7 @@ class MakeTable(object):
                     self.cursor.execute(sql, (iplist[i], date1.strftime(timeformat), 0, 0))
                     continue
                 hw_count = hourcache[iplist[i]]['data']
-                hw_buy = 0
+                hw_buy = 0   #alliplist[i] 的订票量
                 for k in range(self.hourbuyindex_buy[index], self.hourbuyindex_buy[index + 1]):
                     if self.ssdata[k][0] == iplist[i]:
                         hw_buy += 1
@@ -727,7 +750,7 @@ class MakeTable(object):
         returndict = {'count': w_query, 'duration': w_duration, 'mean': w_mean, 'variance': w_variance,
                       'error': data['error']}
         return returndict
-
+    #返回当天svm判断为爬虫的ip
     def makecrawlerip(self, data):
         tempdate = data + ' 00:00:00'
         timeformat = '%Y-%m-%d %H:%M:%S'
@@ -741,7 +764,7 @@ class MakeTable(object):
         for i in range(len(result)):
             tempiplist.append(result[i][0])
         self.crawlerip = np.unique(tempiplist)
-
+    #制作当天的十分钟数据快表,只统计所有以及特定ip的十分钟查询订票情况
     def TenMinuteCount(self, a):  # a的格式为 '2016-08-23'   统计每10分钟的数据.
         date = a
         topiplist = []
@@ -837,7 +860,7 @@ class MakeTable(object):
             date2 += delta
             index += 1
         return 0
-
+    #日用ip近几天的查询情况与ip头三位ip近几天查询情况判断ip是否为正样本，作为svm的填充正样本
     def MakePositiveSample(self, a):
         positiveiplist = []
         flagshoplist = self.flagshoplist
@@ -900,7 +923,7 @@ class MakeTable(object):
                     sql3 = 'UPDATE procdata.sessiondiv SET class = 1 WHERE ip = %s AND starttime >= %s AND starttime < %s'
                     self.cursor.execute(sql3, (iplist[i], a, datetime.datetime.strftime(tempdate2, timeformat2)))
         return 1
-
+    #利用四位ip，三位ip，二位ip数据发现动态ip的爬虫ip以及 单个的爬虫ip ，作为svm训练的填充负样本
     def MakeNegativeSample(self, a):
         negativeiplist = self.GetTopTwoIp(a, 5)
         toplist = []
@@ -928,7 +951,7 @@ class MakeTable(object):
             if (temp in negativeiplist) or (result[i][0] in toplist):
                 self.cursor.execute(sql3, (result[i][0], datetime.datetime.strftime(result[i][1], timeformat)))
         return 0
-
+    #给一个ip，返回ip的具体地址，速度并不快，在用于与客户端交流时不建议多次调用
     def ipwhere(self, ip):
         tempip = ip.split('.')
         ipnum = 0
@@ -941,7 +964,7 @@ class MakeTable(object):
         result = self.cursor.fetchall()
         temp = result[0][0] + result[0][1]
         return {'ipwhere': temp}
-
+    #将每天比较突出的ip先做成快表，加快服务器与客户端的交流速度。（做这么一步主要就是因为ipwhere太慢了。。。）
     def forfaster(self, tempdate):
         date = tempdate
         topiplist = []

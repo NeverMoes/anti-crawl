@@ -323,7 +323,7 @@ class Mysqldb(object):
                                        where ip = '{ip}' '''.format(ip=ip))
             else:
                 cursor.execute('''insert procdata.iplist
-                                       (ip, type, time, istrash, label)
+                                       (ip, type, time, istrash, label, reason)
                                        VALUES ('{ip}', '{type}', '{time}', '{istrash}', '{label}')
                                        '''.format(ip=ip, type=type, time=time.replace('_', ' '),
                                                   istrash=istrash, label=label))

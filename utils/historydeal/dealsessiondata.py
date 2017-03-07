@@ -40,11 +40,9 @@ CREATE TABLE IF NOT EXISTS `sessiondiv` (
   KEY (`endtime`)
 ) ENGINE=MyISAM DEFAULT CHARSET=gbk;
 
-alter table sessiondiv change svmclass svmclass float null;
-
 '''
 
-
+#该函数主要用于历史数据处理
 class MakeSession(object):
     def __init__(self):
         self.connect = pymysql.connect(**const.DBCONF)
@@ -53,8 +51,8 @@ class MakeSession(object):
         self.svmmodel = joblib.load(self.svmpath)
 
     def main(self, d1, d2):
-        self.MakeSession(d1, d2)
-        self.svmjudge(d1, d2)
+        self.MakeSession(d1, d2)    #将查询与订票数据转化为session的格式
+        self.svmjudge(d1, d2)      #用默认使用的svm模型判断session的爬虫概率
 
     def MakeSession(self, d1, d2):
         timeformat = '%Y-%m-%d %H:%M:%S'
@@ -141,7 +139,7 @@ class MakeSession(object):
             self.clear_cache(key, cache[key])
         cache = 0
         return 1
-
+    #将指定ip一段时间的数据转化为session格式，存入数据库
     def clear_cache(self, ip, data):
         class1list = ['PEK', 'PVG', 'CAN', 'CTU', 'SZX', 'SHA']
         class2list = ['KMG', 'XIY', 'CKG', 'HGH', 'XMN', 'NKG', 'WUH', 'CSX', 'URC', 'TAO', 'CGO', 'SYX', 'HAK', 'TSN',
@@ -217,7 +215,7 @@ class MakeSession(object):
                     self.cursor.execute(sql1, (tempresult[i][0], tempresult[i][1].strftime(timeformat)))
                     continue
                 svmlist = []
-                for j in range(2, 11):
+                for j in range(2, 11):#数据归一化
                     svmlist.append(tempresult[i][j])
                 svmlist[0] = 1.0 * svmlist[0] / 10000
                 if svmlist[0] > 1:

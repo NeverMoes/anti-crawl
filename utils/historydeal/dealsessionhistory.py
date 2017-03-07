@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS `allsessiontable` (
 import pymysql
 import datetime
 from utils.consts import const
-
+# 制作第三个页面用的session分布表
 class MakeSessionTable(object):
     
     def __init__(self):
@@ -44,7 +44,7 @@ class MakeSessionTable(object):
         self.whiteipdata = []
         self.blackipdata = []
         return 1
-    def getdata(self,date):
+    def getdata(self,date):  #先将数据读取出来，加快处理速度
         tempdate = date + ' 00:00:00'
         timeformat = '%Y-%m-%d %H:%M:%S'
         date1 = datetime.datetime.strptime(tempdate,timeformat)
@@ -59,7 +59,7 @@ class MakeSessionTable(object):
             else:
                 self.blackipdata.append(result[i])
         return 0
-    
+    #制作属性-查询-的数据统计
     def MakeQuerySessionTable(self,a):
         neipquery  = {}
         poipquery = {}
@@ -97,7 +97,7 @@ class MakeSessionTable(object):
                 else:
                     self.cursor.execute(sql3,(a,'query',temp*5,0,0))
         return 0
-    
+    #制作属性-出发城市数量-的数据统计
     def MakeDepatureSessionTable(self,a):
         neipquery  = {}
         poipquery = {}
@@ -127,6 +127,7 @@ class MakeSessionTable(object):
                 else:
                     self.cursor.execute(sql3,(a,'depature',temp,0,0))
         return 0
+    # 制作属性-到达城市数量-的数据统计
     def MakeArrivalSessionTable(self,a):
         neipquery  = {}
         poipquery = {}
@@ -156,6 +157,7 @@ class MakeSessionTable(object):
                 else:
                     self.cursor.execute(sql3,(a,'arrival',temp,0,0))
         return 0
+    # 制作属性-持续时间-的数据统计
     def MakeDurationSessionTable(self,a):
         neipquery  = {}
         poipquery = {}
@@ -193,6 +195,7 @@ class MakeSessionTable(object):
                 else:
                     self.cursor.execute(sql3,(a,'duration',30*temp,0,0))
         return 0
+    # 制作属性-查询错误率-的数据统计
     def MakeErrorSessionTable(self,a):
         neipquery  = {}
         poipquery = {}
@@ -224,6 +227,7 @@ class MakeSessionTable(object):
                 else:
                     self.cursor.execute(sql3,(a,'error',2*temp,0,0))
         return 0
+    # 制作属性-热门城市占比-的数据统计
     def MakeHotCitySessionTable(self,a):
         neipquery  = {}
         poipquery = {}
@@ -255,6 +259,7 @@ class MakeSessionTable(object):
                 else:
                     self.cursor.execute(sql3,(a,'hotcity',2*temp,0,0))
         return 0
+    # 制作属性-一般城市占比-的数据统计
     def MakeNormalCitySessionTable(self,a):
         neipquery  = {}
         poipquery = {}
@@ -286,6 +291,7 @@ class MakeSessionTable(object):
                 else:
                     self.cursor.execute(sql3,(a,'normalcity',2*temp,0,0))
         return 0
+    #制作属性-查询时间间隔方差-的数据统计
     def MakeVarianceSessionTable(self,a):
         neipquery  = {}
         poipquery = {}
@@ -324,6 +330,7 @@ class MakeSessionTable(object):
                     self.cursor.execute(sql3,(a,'variance',temp*5,0,0))
             
         return 0
+    # 制作属性-查询时间间隔平均-的数据统计
     def MakeMeanSessionTable(self,a):
         neipquery  = {}
         poipquery = {}
