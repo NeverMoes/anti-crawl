@@ -1,12 +1,11 @@
 import pymysql
 import redis
 import datetime
-import os
 import numpy as np
 import multiprocessing as mp
 from sklearn.externals import joblib
 from collections import namedtuple
-from .consts import const
+from ..consts import const
 
 
 class Mysqldb(object):
@@ -68,19 +67,8 @@ class Cache(mp.Process):
         self.svmblacklis = 'svmblack'
 
         # 导入svm模型
-        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-        svmpath = os.path.join(BASE_DIR, 'svmmodel', 'svmmodel.pkl')
 
-        self.svm_model = joblib.load(svmpath)
-
-        svmpath = os.path.join(BASE_DIR, 'model20', 'svmmodel.pkl')
-        self.svm_model20 = joblib.load(svmpath)
-
-        svmpath = os.path.join(BASE_DIR, 'model50', 'svmmodel.pkl')
-        self.svm_model50 = joblib.load(svmpath)
-
-        svmpath = os.path.join(BASE_DIR, 'model100', 'svmmodel.pkl')
-        self.svm_model100 = joblib.load(svmpath)
+        self.svm_model = joblib.load(const.SVM_PATH_OLD)
 
         # 定义结果类型
         self.Svmres = namedtuple('Svmres', ['iscra', 'notcra'])
@@ -296,42 +284,45 @@ class Cache(mp.Process):
                             mean=np.array(interval).mean())
 
     def svmprodict(self, datasvm):
-        querycount = datasvm[1]    #获取查询次数
-        #resultpro = self.svm_model.predict_proba([datasvm])[0][1]
-        #归一化 ,之后还要改
-        datasvm[0] = 1.0*datasvm[0]/10000
-        if datasvm[0] > 1:
-            datasvm[0] = 1
-        datasvm[1] = 1.0 * datasvm[1] / 200
-        if datasvm[1] > 1:
-            datasvm[1] = 1
-        datasvm[2] = 1.0 * datasvm[2] / 50
-        if datasvm[2] > 1:
-            datasvm[2] = 1
-        datasvm[3] = 1.0 * datasvm[3] / 50
-        if datasvm[3] > 1:
-            datasvm[3] = 1
-        datasvm[4] = 1.0 * datasvm[4] / 1000
-        if datasvm[4] > 1:
-            datasvm[4] = 1
-        datasvm[5] = 1.0 * datasvm[5] / 1000
-        if datasvm[5] > 1:
-            datasvm[5] = 1
+        # querycount = datasvm[1]    #获取查询次数
 
-        if querycount < 50:
-            resultpro = self.svm_model20.predict_proba([datasvm])[0][1]
-        elif querycount < 100:
-            resultpro = self.svm_model50.predict_proba([datasvm])[0][1]
-        else:
-            resultpro = self.svm_model100.predict_proba([datasvm])[0][1]
-        if resultpro > 0.90:
+        resultpro = self.svm_model.predict_proba([datasvm])[0][1]
+
+        #归一化 ,之后还要改
+        # datasvm[0] = 1.0*datasvm[0]/10000
+        # if datasvm[0] > 1:
+        #     datasvm[0] = 1
+        # datasvm[1] = 1.0 * datasvm[1] / 200
+        # if datasvm[1] > 1:
+        #     datasvm[1] = 1
+        # datasvm[2] = 1.0 * datasvm[2] / 50
+        # if datasvm[2] > 1:
+        #     datasvm[2] = 1
+        # datasvm[3] = 1.0 * datasvm[3] / 50
+        # if datasvm[3] > 1:
+        #     datasvm[3] = 1
+        # datasvm[4] = 1.0 * datasvm[4] / 1000
+        # if datasvm[4] > 1:
+        #     datasvm[4] = 1
+        # datasvm[5] = 1.0 * datasvm[5] / 1000
+        # if datasvm[5] > 1:
+        #     datasvm[5] = 1
+
+        # if querycount < 50:
+        #     resultpro = self.svm_model20.predict_proba([datasvm])[0][1]
+        # elif querycount < 100:
+        #     resultpro = self.svm_model50.predict_proba([datasvm])[0][1]
+        # else:
+        #     resultpro = self.svm_model100.predict_proba([datasvm])[0][1]
+
+        if resultpro > 0.50:
             return True
         else:
             return False
 
     # 将捕获到的ip放入数据库
     def catchquery(self, ip, time, type):
-        #print('ip: ', ip, 'time: ', time, 'type: ', type)
+        print('ip: ', ip, 'time: ', time, 'type: ', type)
 
         self.mdb.cursor.execute('''insert into {table}
                                    (`ip`, `time`, `type`)

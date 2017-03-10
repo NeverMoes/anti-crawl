@@ -3,9 +3,13 @@ from django.http import JsonResponse
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 import simplejson
+import datetime
+import multiprocessing as mp
+
 
 from .form import LoginForm
 from .mysql import Mysqldb as db
+from utils.old.cacherun import Cache
 
 
 def jsonres(data=None, result=True, reason=None):
@@ -139,94 +143,94 @@ def api_ipwhere(request):
 
 
 # cache重现模块
-# def api_re(request):
-#     if request.GET.get('param'):
-#         param = request.GET.get('param')
-#         if param == 'start':
-#             if request.GET.get('date'):
-#                 if mp.active_children():
-#                     return jsonres(result=False, reason='server is already running')
-#                 else:
-#                     cache = Cache(date=request.GET.get('date'))
-#                     cache.start()
-#                     return jsonres({'start': 'ok'})
-#             else:
-#                 return jsonres(result=False)
-#
-#         elif param == 'stop':
-#             if mp.active_children():
-#                 [(x.terminate(), x.join()) for x in mp.active_children()]
-#                 return jsonres({'stop': 'ok'})
-#             else:
-#                 return jsonres(result=False, reason='no server is running now')
-#
-#         elif param == 'data':
-#             if mp.active_children():
-#                 data = list()
-#                 db.get_connetc()
-#
-#                 db.cursor.execute('''
-#                                   SELECT `time`
-#                                   FROM procdata._ipcatched
-#                                   ORDER BY `time` DESC
-#                                   LIMIT 1
-#                                   ''')
-#
-#                 _stupid = db.cursor.fetchone()
-#
-#                 if not _stupid:
-#                     db.close_connenct()
-#                     return jsonres(result=False, reason='please wait')
-#
-#                 now = _stupid[0]
-#
-#                 sdate = datetime.datetime.strptime(request.GET['date'], '%Y-%m-%d')
-#                 mdate = sdate
-#                 interval = datetime.timedelta(minutes=10)
-#
-#                 while True:
-#                     if mdate < now:
-#                         db.cursor.execute('''
-#                                           select '{stime}', count(ip)
-#                                           from procdata.cmd_cache
-#                                           where `querytime` >= '{stime}'
-#                                           and `querytime` < '{etime}'
-#                                           and `command` = 'FlightShopping'
-#                                           '''.format(stime=mdate, etime=mdate + interval))
-#                         querycount = db.cursor.fetchone()[1]
-#
-#                         db.cursor.execute('''
-#                                           select '{stime}', count(ip)
-#                                           from procdata.cmd_cache
-#                                           where `querytime` >= '{stime}'
-#                                           and `querytime` < '{etime}'
-#                                           and `command` = 'SellSeat'
-#                                           '''.format(stime=mdate, etime=mdate + interval))
-#                         ordercount = db.cursor.fetchone()[1]
-#
-#                         db.cursor.execute('''
-#                                           select '{stime}', count(ip)
-#                                           from procdata._ipcatched
-#                                           where `time` >= '{stime}'
-#                                           and `time` < '{etime}'
-#                                           '''.format(stime=mdate, etime=mdate + interval))
-#
-#                         row = db.cursor.fetchone()
-#                         data.append({'time': row[0], 'catchedcount': row[1],
-#                                      'ordercount': ordercount, 'querycount': querycount})
-#
-#                         mdate += interval
-#                     else:
-#                         break
-#
-#                 db.close_connenct()
-#                 return jsonres(data)
-#             else:
-#                 return jsonres(result=False, reason='you should first start the server')
-#         else:
-#             return jsonres(result=False, reason='wrong param')
-#     else:
-#         return jsonres(result=False, reason='lack param')
+def api_re(request):
+    if request.GET.get('param'):
+        param = request.GET.get('param')
+        if param == 'start':
+            if request.GET.get('date'):
+                if mp.active_children():
+                    return jsonres(result=False, reason='server is already running')
+                else:
+                    cache = Cache(date=request.GET.get('date'))
+                    cache.start()
+                    return jsonres({'start': 'ok'})
+            else:
+                return jsonres(result=False)
+
+        elif param == 'stop':
+            if mp.active_children():
+                [(x.terminate(), x.join()) for x in mp.active_children()]
+                return jsonres({'stop': 'ok'})
+            else:
+                return jsonres(result=False, reason='no server is running now')
+
+        elif param == 'data':
+            if mp.active_children():
+                data = list()
+                db.get_connetc()
+
+                db.cursor.execute('''
+                                  SELECT `time`
+                                  FROM procdata._ipcatched
+                                  ORDER BY `time` DESC
+                                  LIMIT 1
+                                  ''')
+
+                _stupid = db.cursor.fetchone()
+
+                if not _stupid:
+                    db.close_connenct()
+                    return jsonres(result=False, reason='please wait')
+
+                now = _stupid[0]
+
+                sdate = datetime.datetime.strptime(request.GET['date'], '%Y-%m-%d')
+                mdate = sdate
+                interval = datetime.timedelta(minutes=10)
+
+                while True:
+                    if mdate < now:
+                        db.cursor.execute('''
+                                          select '{stime}', count(ip)
+                                          from procdata.cmd_cache
+                                          where `querytime` >= '{stime}'
+                                          and `querytime` < '{etime}'
+                                          and `command` = 'FlightShopping'
+                                          '''.format(stime=mdate, etime=mdate + interval))
+                        querycount = db.cursor.fetchone()[1]
+
+                        db.cursor.execute('''
+                                          select '{stime}', count(ip)
+                                          from procdata.cmd_cache
+                                          where `querytime` >= '{stime}'
+                                          and `querytime` < '{etime}'
+                                          and `command` = 'SellSeat'
+                                          '''.format(stime=mdate, etime=mdate + interval))
+                        ordercount = db.cursor.fetchone()[1]
+
+                        db.cursor.execute('''
+                                          select '{stime}', count(ip)
+                                          from procdata._ipcatched
+                                          where `time` >= '{stime}'
+                                          and `time` < '{etime}'
+                                          '''.format(stime=mdate, etime=mdate + interval))
+
+                        row = db.cursor.fetchone()
+                        data.append({'time': row[0], 'catchedcount': row[1],
+                                     'ordercount': ordercount, 'querycount': querycount})
+
+                        mdate += interval
+                    else:
+                        break
+
+                db.close_connenct()
+                return jsonres(data)
+            else:
+                return jsonres(result=False, reason='you should first start the server')
+        else:
+            return jsonres(result=False, reason='wrong param')
+    else:
+        return jsonres(result=False, reason='lack param')
 
 
 # 查路线

@@ -1,7 +1,4 @@
-from utils.dealhistory import MakeTable
+from utils.old.cacherun import Cache
 
-
-if __name__ == "__main__":
-    db = MakeTable()
-    db.maindeal('2016-8-24')
-
+cache = Cache('2016-8-24')
+cache.start()
